@@ -179,7 +179,7 @@ jobs:
         with:
           fetch-depth: 0          # full history so Gitleaks sees old commits
           persist-credentials: false
-      - uses: dotmann-commits/mikeops-guard@<commit-sha> # v0.1.0
+      - uses: dotmann-commits/mikeops-guard@c4a4795d93952b85ca3c8bb8c4172e30bcb04167 # v0.1.0
         with:
           fail-on: high
       - if: always()
