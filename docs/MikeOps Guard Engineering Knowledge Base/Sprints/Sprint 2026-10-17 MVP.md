@@ -16,4 +16,4 @@
 
 **Results.** 80 of 80 tests in Linux with all five scanners. Full scan of the sample repo: 26 findings across all six scanners, exit 1. n8n-workflows scanned from a read-only mount: 0 findings, target unchanged. Guard passes its own policy. Real Ollama explanations verified.
 
-**Not done.** Not committed, not pushed, action not run on a real GitHub runner.
+**Shipped.** Public repo created, first CI run green (the action ran on a real runner), tagged v0.1.0.

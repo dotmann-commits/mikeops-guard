@@ -8,6 +8,6 @@ MikeOps Guard turns five free security scanners plus a built-in GitHub Actions a
 
 **Origin.** Built right after a manual security audit of the public `dotmann-commits` repos (n8n-workflows sanitised, MikeOps-dashboard debug endpoint fixed). This tool automates that audit.
 
-**Status 2026-10-17.** MVP built and validated. Not committed, not published.
+**Status 2026-10-17.** MVP built, validated and published as v0.1.0 on GitHub.
 
 **Audience.** MikeOps client projects, MikeOps own repos, and open source users. It is also a portfolio piece for platform and DevSecOps roles.

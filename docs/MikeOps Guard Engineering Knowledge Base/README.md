@@ -4,7 +4,7 @@ Last updated: 2026-10-17
 
 Engineering documentation for MikeOps Guard, an open-source DevSecOps CLI that finds exposed secrets, risky GitHub Actions, Dockerfile problems and vulnerable dependencies before code ships.
 
-- Code: `~/mikeops-guard` (local git repo on main, committed, not pushed)
+- Code: `~/mikeops-guard`, public at https://github.com/dotmann-commits/mikeops-guard
 - User docs: `README.md` in the repo root
 
 ## Index
