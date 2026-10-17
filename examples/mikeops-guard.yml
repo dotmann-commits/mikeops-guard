@@ -1,0 +1,31 @@
+# Copy to .github/workflows/mikeops-guard.yml in the repository you want to protect.
+# Replace <sha> with the commit SHA of the MikeOps Guard release you trust.
+name: MikeOps Guard
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0 # full history, so Gitleaks can find secrets in old commits
+          persist-credentials: false
+
+      - uses: dotmann-commits/mikeops-guard@<sha> # v0.1.0
+        with:
+          fail-on: high
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mikeops-guard-report
+          path: mikeops-guard-report/

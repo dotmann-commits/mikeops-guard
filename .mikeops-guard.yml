@@ -1,0 +1,5 @@
+# Policy for scanning MikeOps Guard itself.
+failOn: high
+exclude:
+  # Deliberately insecure fixtures used by the test suite.
+  - "test/fixtures/**"

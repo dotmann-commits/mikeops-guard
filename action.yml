@@ -1,0 +1,65 @@
+name: MikeOps Guard
+description: Scan a repository for exposed secrets, risky GitHub Actions, Dockerfile issues and vulnerable dependencies.
+author: Michael Awude (MikeOps)
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  path:
+    description: Directory to scan, relative to the workspace.
+    default: "."
+  fail-on:
+    description: Fail the job on findings at or above this level (critical, high, medium, low, info, none).
+    default: high
+  config:
+    description: Optional path to a .mikeops-guard.yml config file.
+    default: ""
+  report-dir:
+    description: Where to write report.json and report.html.
+    default: mikeops-guard-report
+  install-scanners:
+    description: Download pinned, checksum-verified scanner binaries before scanning.
+    default: "true"
+
+outputs:
+  exit-code:
+    description: MikeOps Guard exit code (0 pass, 1 policy failed, 2 usage error, 3 scanner failed).
+    value: ${{ steps.scan.outputs.exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+      with:
+        node-version: 22
+
+    - name: Build MikeOps Guard
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm ci --no-audit --no-fund && npm run build
+
+    - name: Install scanners
+      if: inputs.install-scanners == 'true'
+      shell: bash
+      run: "$GITHUB_ACTION_PATH/scripts/install-scanners.sh"
+
+    - name: Scan
+      id: scan
+      shell: bash
+      # Inputs are passed through env, never interpolated into the script, so they cannot inject shell code.
+      env:
+        GUARD_PATH: ${{ inputs.path }}
+        GUARD_FAIL_ON: ${{ inputs.fail-on }}
+        GUARD_CONFIG: ${{ inputs.config }}
+        GUARD_REPORT_DIR: ${{ inputs.report-dir }}
+      run: |
+        args=(scan "$GUARD_PATH" --fail-on "$GUARD_FAIL_ON" --require-tools
+              --json "$GUARD_REPORT_DIR/report.json" --html "$GUARD_REPORT_DIR/report.html")
+        if [[ -n "$GUARD_CONFIG" ]]; then args+=(--config "$GUARD_CONFIG"); fi
+        set +e
+        node "$GITHUB_ACTION_PATH/dist/cli/index.js" "${args[@]}"
+        code=$?
+        set -e
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        exit "$code"

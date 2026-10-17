@@ -1,0 +1,17 @@
+name: PR preview
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+permissions: write-all
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Greet
+        run: |
+          echo "Building preview"
+          echo "Title: ${{ github.event.pull_request.title }}"
+      - uses: some-org/deploy-preview@main

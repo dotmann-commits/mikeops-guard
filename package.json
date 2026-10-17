@@ -1,0 +1,50 @@
+{
+  "name": "mikeops-guard",
+  "version": "0.1.0",
+  "description": "DevSecOps CLI that finds security issues and deployment risks in a repository before you ship.",
+  "license": "MIT",
+  "author": "Michael Awude (MikeOps)",
+  "type": "module",
+  "bin": {
+    "mikeops-guard": "dist/cli/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "devsecops",
+    "security",
+    "github-actions",
+    "docker",
+    "secrets",
+    "sca",
+    "cli"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/cli/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm run lint && npm test",
+    "prepublishOnly": "npm run check && npm run build"
+  },
+  "dependencies": {
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.5",
+    "eslint": "^10.13.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.2",
+    "vitest": "^5.0.5"
+  }
+}
