@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import type { z } from 'zod';
 import { errorMessage, ScannerError } from '../core/errors.js';
@@ -42,9 +43,22 @@ export function parseJson<T>(raw: string, schema: z.ZodType<T>, toolName: string
 }
 
 /** Normalises a tool-reported path to a forward-slash path relative to the scan root. */
+/**
+ * A scanner's file path, relative to the scanned root. Scanners may report the real path of a file while the root was
+ * given through a symbolic link (on macOS /tmp and /var are links to /private/...), so when the plain relative path
+ * leaves the root, both sides are resolved to their real locations and compared again.
+ */
 export function relativeToRoot(root: string, file: string): string {
   const absolute = path.isAbsolute(file) ? file : path.join(root, file);
-  return toPosix(path.relative(root, absolute));
+  const relative = path.relative(root, absolute);
+  if (!relative.startsWith('..')) return toPosix(relative);
+  try {
+    const real = path.relative(realpathSync(root), realpathSync(absolute));
+    if (!real.startsWith('..')) return toPosix(real);
+  } catch {
+    // A path that no longer exists cannot be resolved; keep the plain relative path.
+  }
+  return toPosix(relative);
 }
 
 const UPPER_SEVERITY: Record<string, Severity> = {

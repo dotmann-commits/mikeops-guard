@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ScannerError } from '../../src/core/errors.js';
@@ -7,7 +8,7 @@ import { parseOsv, parseTrivyFs } from '../../src/scanners/dependencies.js';
 import { parseGitleaks } from '../../src/scanners/gitleaks.js';
 import { parseHadolint } from '../../src/scanners/hadolint.js';
 import { parseTrivyConfig } from '../../src/scanners/trivy-config.js';
-import { severityFromCvss } from '../../src/scanners/shared.js';
+import { relativeToRoot, severityFromCvss } from '../../src/scanners/shared.js';
 
 /** Every fixture here is unedited output captured from the real tool. */
 const fixture = (name: string) =>
@@ -95,5 +96,26 @@ describe('shared helpers', () => {
   it('rejects output that is not JSON or has the wrong shape', () => {
     expect(() => parseHadolint('Error: something broke', '/r')).toThrow(ScannerError);
     expect(() => parseHadolint('{"not":"an array"}', '/r')).toThrow(/did not match/);
+  });
+});
+
+describe('relativeToRoot', () => {
+  it('reports a file inside a root that was given through a symbolic link as a path inside the root', () => {
+    // Reproduces macOS, where /tmp and /var link to /private/...: a scanner reports the real path of the file.
+    const base = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'guard-link-')));
+    try {
+      const realRoot = path.join(base, 'real');
+      const linkRoot = path.join(base, 'link');
+      mkdirSync(realRoot);
+      writeFileSync(path.join(realRoot, 'requirements.txt'), 'jinja2==2.4.1\n');
+      writeFileSync(path.join(base, 'outside.txt'), '');
+      symlinkSync(realRoot, linkRoot, 'dir');
+      expect(relativeToRoot(linkRoot, path.join(realRoot, 'requirements.txt'))).toBe('requirements.txt');
+      expect(relativeToRoot(linkRoot, 'docker/Dockerfile')).toBe('docker/Dockerfile');
+      expect(relativeToRoot(linkRoot, path.join(base, 'outside.txt'))).toBe('../outside.txt'); // really outside stays outside
+      expect(relativeToRoot(linkRoot, '/nowhere/gone.txt')).toMatch(/^\.\.\//); // unresolvable keeps the plain result
+    } finally {
+      rmSync(base, { recursive: true, force: true });
+    }
   });
 });

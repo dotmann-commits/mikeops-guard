@@ -71,8 +71,11 @@ Then install the scanners you want. Each one is optional.
 **macOS**
 
 ```bash
-brew install gitleaks actionlint hadolint trivy osv-scanner
+brew install gitleaks actionlint hadolint
+scripts/install-scanners.sh ~/.local/bin   # trivy and osv-scanner from official prebuilt releases
 ```
+
+On Intel Macs Homebrew has no prebuilt packages for trivy and osv-scanner and compiles them from source, which can take gigabytes of disk. The script downloads the official macOS release binaries instead, verified against their published SHA-256 checksums. On Apple silicon `brew install trivy osv-scanner` also works.
 
 **Linux (and CI)**
 
@@ -80,7 +83,7 @@ brew install gitleaks actionlint hadolint trivy osv-scanner
 scripts/install-scanners.sh ~/.local/bin
 ```
 
-The script downloads pinned releases from each project's GitHub releases page and verifies every file against the published SHA-256 checksums.
+The script downloads pinned releases from each project's GitHub releases page and verifies every file against the published SHA-256 checksums. Set `SCANNERS="trivy osv-scanner"` to install only some of them.
 
 Check what is available:
 
