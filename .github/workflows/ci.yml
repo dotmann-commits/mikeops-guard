@@ -25,6 +25,8 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci
+      # Pinned, checksum-verified scanners, so the real-scanner integration tests run here instead of being skipped.
+      - run: scripts/install-scanners.sh
       - run: npm run typecheck
       - run: npm run lint
       # Build first: the Ctrl+C test runs the built CLI as a real child process.
