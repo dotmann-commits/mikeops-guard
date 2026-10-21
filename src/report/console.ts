@@ -26,7 +26,7 @@ export function renderConsole(report: Report, options: ConsoleOptions): string {
   lines.push('Scanners');
   for (const s of report.scanners) {
     const status = s.status === 'ok' ? paint('\x1b[32m', 'ok     ') : s.status === 'skipped' ? paint(DIM, 'skipped') : paint('\x1b[31m', 'failed ');
-    const detail = s.status === 'ok' ? `${s.findingCount} finding(s)` : t(s.reason ?? '');
+    const detail = s.status === 'ok' ? `${s.findingCount} finding(s)${s.reason ? `; ${t(s.reason)}` : ''}` : t(s.reason ?? '');
     lines.push(`  ${status}  ${t(s.title).padEnd(44)} ${paint(DIM, detail)}`);
     if (s.installHint) lines.push(`           ${paint(DIM, t(s.installHint))}`);
   }

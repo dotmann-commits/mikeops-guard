@@ -8,7 +8,7 @@ import type { ExecFn } from './exec.js';
 import { fingerprintAll } from './fingerprint.js';
 import { applyPolicy, countBySeverity, meetsThreshold } from './policy.js';
 import { redactOptional, redactSecrets } from './redact.js';
-import type { ScanContext, Scanner } from './scanner.js';
+import type { ScanContext, Scanner, SkippedFile } from './scanner.js';
 import { installHint, type BinaryResolver } from './tools.js';
 import type { Finding, NewFinding, Report, ScannerOutcome } from './types.js';
 
@@ -22,6 +22,11 @@ export interface RunScanOptions {
   now?: () => Date;
 }
 
+type BaseContext = Omit<ScanContext, 'binary' | 'skipFile'>;
+
+/** Enough to explain a partial scan without letting a hostile repository bloat the report. */
+const MAX_LISTED_SKIPPED_FILES = 20;
+
 interface ScannerRun {
   outcome: ScannerOutcome;
   findings: Finding[];
@@ -34,7 +39,7 @@ export async function runScan(options: RunScanOptions): Promise<Report> {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'mikeops-guard-'));
 
   try {
-    const baseContext: Omit<ScanContext, 'binary'> = {
+    const baseContext: BaseContext = {
       root,
       config,
       files: await discoverFiles(root, config.exclude),
@@ -115,7 +120,7 @@ async function runGrouped(
   return scanners.flatMap((s) => results.get(s) ?? []);
 }
 
-async function runOne(scanner: Scanner, base: Omit<ScanContext, 'binary'>, options: RunScanOptions): Promise<ScannerRun> {
+async function runOne(scanner: Scanner, base: BaseContext, options: RunScanOptions): Promise<ScannerRun> {
   const started = Date.now();
   const outcome = (fields: Omit<ScannerOutcome, 'scanner' | 'title' | 'durationMs' | 'incomplete'>, incomplete: boolean): ScannerOutcome => ({
     scanner: scanner.id,
@@ -138,13 +143,15 @@ async function runOne(scanner: Scanner, base: Omit<ScanContext, 'binary'>, optio
     }
   }
 
-  const ctx: ScanContext = binary ? { ...base, binary } : base;
+  const skipped: SkippedFile[] = [];
+  const skipFile = (file: SkippedFile): void => void skipped.push(file);
+  const ctx: ScanContext = binary ? { ...base, binary, skipFile } : { ...base, skipFile };
   const skipReason = scanner.skipReason(ctx);
   if (skipReason) return { outcome: outcome({ status: 'skipped', findingCount: 0, reason: skipReason }, false), findings: [] };
 
   try {
     const findings = fingerprintAll((await scanner.run(ctx)).map(redactFinding));
-    return { outcome: outcome({ status: 'ok', findingCount: findings.length }, false), findings };
+    return { outcome: outcome({ status: 'ok', findingCount: findings.length, ...skippedFields(skipped) }, skipped.some((s) => s.affectsCoverage)), findings };
   } catch (error) {
     const hint = error instanceof ToolMissingError && tool ? installHint(tool) : undefined;
     return {
@@ -152,6 +159,18 @@ async function runOne(scanner: Scanner, base: Omit<ScanContext, 'binary'>, optio
       findings: [],
     };
   }
+}
+
+function skippedFields(skipped: readonly SkippedFile[]): Pick<ScannerOutcome, 'reason' | 'skippedFiles' | 'skippedFileCount'> {
+  if (skipped.length === 0) return {};
+  const listed = skipped.slice(0, MAX_LISTED_SKIPPED_FILES).map(({ file, reason }) => ({ file: redactSecrets(file), reason }));
+  const names = listed.slice(0, 3).map((s) => s.file).join(', ');
+  const more = skipped.length > 3 ? ` and ${skipped.length - 3} more` : '';
+  return {
+    reason: `${skipped.length} file(s) not checked: ${names}${more}`,
+    skippedFiles: listed,
+    skippedFileCount: skipped.length,
+  };
 }
 
 /** Scanner text can quote what it found (a workflow line, a config value), so credential formats are removed first. */

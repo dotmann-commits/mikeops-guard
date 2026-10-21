@@ -16,6 +16,17 @@ export interface ScanContext {
   exec: ExecFn;
   /** Absolute path of the external binary, when the scanner needs one. */
   binary?: string;
+  /**
+   * Records a file the scanner could not check. When affectsCoverage is true the scanner is reported as incomplete,
+   * so a partial check never reads as a full one.
+   */
+  skipFile(skipped: SkippedFile): void;
+}
+
+export interface SkippedFile {
+  file: string;
+  reason: string;
+  affectsCoverage: boolean;
 }
 
 export interface Scanner {

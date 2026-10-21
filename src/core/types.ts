@@ -48,6 +48,9 @@ export interface ScannerOutcome {
   incomplete: boolean;
   reason?: string;
   installHint?: string;
+  /** Files this scanner did not check, for example because they were too large. Capped, see skippedFileCount. */
+  skippedFiles?: { file: string; reason: string }[];
+  skippedFileCount?: number;
 }
 
 /** passed: no findings at the threshold and every scanner ran. incomplete: no findings at the threshold, but coverage gaps. */

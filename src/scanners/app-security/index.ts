@@ -1,12 +1,15 @@
-import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
-import type { Scanner } from '../../core/scanner.js';
+import { FILE_CONCURRENCY, mapLimit } from '../../core/concurrency.js';
+import { readTextFile } from '../../core/files.js';
+import type { ScanContext, Scanner } from '../../core/scanner.js';
 import type { NewFinding } from '../../core/types.js';
 import { envFileFindings, sourceFindings, type ProjectKind } from './frontend.js';
 import { maskSql, publicBucketFinding, supabaseSqlFindings } from './sql.js';
 
 /** Generated bundles and very large files are not hand-written source; reading them would only slow the scan. */
-const MAX_FILE_BYTES = 512 * 1024;
+const MAX_SOURCE_BYTES = 512 * 1024;
+/** package.json only decides which framework rules apply. A huge one is not a real manifest. */
+const MAX_MANIFEST_BYTES = 256 * 1024;
 /** Frameworks where only files marked "use client" run in the browser. */
 const CLIENT_DIRECTIVE_FRAMEWORKS = ['next'];
 /** Evidence that a package is a web app whose code reaches the browser. */
@@ -27,11 +30,19 @@ function isBuildOutput(file: string): boolean {
   return file.split('/').slice(0, -1).some((segment) => BUILD_OUTPUT.has(segment));
 }
 
-async function readSmall(root: string, file: string): Promise<string | null> {
-  const absolute = path.join(root, file);
-  const info = await stat(absolute);
-  if (info.size > MAX_FILE_BYTES) return null;
-  return readFile(absolute, 'utf8');
+
+interface SourceFile {
+  file: string;
+  source: string;
+}
+
+async function readAll(ctx: ScanContext, list: readonly string[], maxBytes: number, affectsCoverage: boolean): Promise<(SourceFile | null)[]> {
+  return mapLimit(list, FILE_CONCURRENCY, async (file) => {
+    const read = await readTextFile(path.join(ctx.root, file), maxBytes);
+    if (read.ok) return { file, source: read.text };
+    ctx.skipFile({ file, reason: read.reason, affectsCoverage });
+    return null;
+  });
 }
 
 /** The nearest package.json decides which framework rules apply to a file (monorepos included). */
@@ -39,7 +50,9 @@ function projectKindFinder(root: string): (file: string) => Promise<ProjectKind>
   const cache = new Map<string, Promise<ProjectKind>>();
   const load = async (dir: string): Promise<ProjectKind> => {
     try {
-      const pkg = JSON.parse(await readFile(path.join(root, dir, 'package.json'), 'utf8')) as Record<string, unknown>;
+      const manifest = await readTextFile(path.join(root, dir, 'package.json'), MAX_MANIFEST_BYTES);
+      if (!manifest.ok) throw new Error(manifest.reason);
+      const pkg = JSON.parse(manifest.text) as Record<string, unknown>;
       const deps = { ...(pkg.dependencies as object | undefined), ...(pkg.devDependencies as object | undefined) };
       return {
         browser: BROWSER_PACKAGES.some((name) => name in deps),
@@ -89,19 +102,15 @@ export const appSecurityScanner: Scanner = {
   async run(ctx) {
     const { root, files } = ctx;
     const kindOf = projectKindFinder(root);
-    const read = async (file: string): Promise<{ file: string; source: string } | null> => {
-      const source = await readSmall(root, file);
-      return source === null ? null : { file, source };
-    };
     const present = <T>(items: (T | null)[]): T[] => items.filter((x): x is T => x !== null);
 
-    const [env, sql, source, configs] = await Promise.all([
-      Promise.all(files.envFiles.map(read)),
-      Promise.all(files.sqlFiles.map(read)),
-      Promise.all(files.sourceFiles.filter((f) => !isBuildOutput(f)).map(read)),
-      Promise.all(files.supabaseConfigs.map(read)),
-    ]);
-    const sourceResults = await Promise.all(present(source).map(async (f) => sourceFindings(f.file, f.source, await kindOf(f.file))));
+    // Reads run one group at a time, each bounded, so a large monorepo never has thousands of files open at once.
+    const env = await readAll(ctx, files.envFiles, MAX_SOURCE_BYTES, true);
+    const sql = await readAll(ctx, files.sqlFiles, MAX_SOURCE_BYTES, true);
+    // Oversized JavaScript is almost always a vendored or generated bundle, so it is listed but does not mark the scan incomplete.
+    const source = await readAll(ctx, files.sourceFiles.filter((f) => !isBuildOutput(f)), MAX_SOURCE_BYTES, false);
+    const configs = await readAll(ctx, files.supabaseConfigs, MAX_SOURCE_BYTES, true);
+    const sourceResults = await mapLimit(present(source), FILE_CONCURRENCY, async (f) => sourceFindings(f.file, f.source, await kindOf(f.file)));
     return [
       ...present(env).flatMap((f) => envFileFindings(f.file, f.source)),
       ...supabaseSqlFindings(present(sql).filter((f) => isSupabaseSql(f.file, f.source))),

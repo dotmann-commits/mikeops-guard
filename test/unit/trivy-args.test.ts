@@ -6,7 +6,7 @@ import { dependenciesScanner } from '../../src/scanners/dependencies.js';
 import { trivyConfigScanner } from '../../src/scanners/trivy-config.js';
 
 function context(exec: ExecFn, config = configSchema.parse({ exclude: ['vendor/**'] })): ScanContext {
-  return { root: '/repo', config, files: { dockerfiles: [], workflows: [], envFiles: [], sqlFiles: [], sourceFiles: [], supabaseConfigs: [], fileCount: 0 }, isGitRepo: true, tempDir: '/tmp/x', timeoutMs: 1000, exec, binary: '/usr/bin/trivy' };
+  return { root: '/repo', config, files: { dockerfiles: [], workflows: [], envFiles: [], sqlFiles: [], sourceFiles: [], supabaseConfigs: [], fileCount: 0 }, isGitRepo: true, tempDir: '/tmp/x', timeoutMs: 1000, exec, binary: '/usr/bin/trivy', skipFile: () => undefined };
 }
 
 describe('trivy arguments', () => {

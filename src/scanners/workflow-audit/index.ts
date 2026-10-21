@@ -1,5 +1,6 @@
-import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { FILE_CONCURRENCY, mapLimit } from '../../core/concurrency.js';
+import { readTextFile } from '../../core/files.js';
 import type { Scanner } from '../../core/scanner.js';
 import type { NewFinding } from '../../core/types.js';
 import type { WorkflowRule } from './rule.js';
@@ -48,9 +49,14 @@ export const workflowAuditScanner: Scanner = {
   tool: () => null,
   skipReason: (ctx) => (ctx.files.workflows.length === 0 ? 'no GitHub Actions workflows found' : null),
   async run(ctx) {
-    const results = await Promise.all(
-      ctx.files.workflows.map(async (file) => auditWorkflow(file, await readFile(path.join(ctx.root, file), 'utf8'))),
-    );
+    const results = await mapLimit(ctx.files.workflows, FILE_CONCURRENCY, async (file) => {
+      const read = await readTextFile(path.join(ctx.root, file));
+      if (!read.ok) {
+        ctx.skipFile({ file, reason: read.reason, affectsCoverage: true });
+        return [];
+      }
+      return auditWorkflow(file, read.text);
+    });
     return results.flat();
   },
 };

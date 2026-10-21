@@ -32,7 +32,7 @@ async function scan(dir: string): Promise<string[]> {
   const config = configSchema.parse({});
   const files = await discoverFiles(root, []);
   const findings: NewFinding[] = await appSecurityScanner.run({
-    root, config, files, isGitRepo: false, tempDir: root, timeoutMs: 1000, exec: () => Promise.reject(new Error('not used')),
+    root, config, files, isGitRepo: false, tempDir: root, timeoutMs: 1000, exec: () => Promise.reject(new Error('not used')), skipFile: () => undefined,
   });
   return findings.map((f) => `${f.ruleId}@${f.file}:${f.line}`).sort();
 }
@@ -46,7 +46,7 @@ describe('app-security detection benchmark', () => {
     const root = path.join(FIXTURES, 'vulnerable');
     const findings = await appSecurityScanner.run({
       root, config: configSchema.parse({}), files: await discoverFiles(root, []), isGitRepo: false, tempDir: root, timeoutMs: 1000,
-      exec: () => Promise.reject(new Error('not used')),
+      exec: () => Promise.reject(new Error('not used')), skipFile: () => undefined,
     });
     const policies = findings.filter((f) => f.ruleId === 'supabase-permissive-write-policy').map((f) => [f.line, f.severity]);
     expect(policies).toEqual([[3, 'high'], [5, 'low']]);
@@ -60,7 +60,7 @@ describe('app-security detection benchmark', () => {
     const root = path.join(FIXTURES, 'vulnerable');
     const findings = await appSecurityScanner.run({
       root, config: configSchema.parse({}), files: await discoverFiles(root, []), isGitRepo: false, tempDir: root, timeoutMs: 1000,
-      exec: () => Promise.reject(new Error('not used')),
+      exec: () => Promise.reject(new Error('not used')), skipFile: () => undefined,
     });
     const text = JSON.stringify(findings);
     expect(text).toContain('VITE_SUPABASE_SERVICE_ROLE_KEY');
