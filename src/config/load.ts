@@ -11,6 +11,32 @@ export interface LoadedConfig {
   config: GuardConfig;
   /** Absolute path of the file that was read, or undefined when defaults are used. */
   source?: string;
+  /** Settings that were refused for safety, explained for the user. */
+  warnings: string[];
+}
+
+const DEFAULT_EXPLAIN_HOST = configSchema.parse({}).explain.host;
+
+function isLoopbackHost(url: string): boolean {
+  const host = new URL(url).hostname.replace(/^\[|\]$/g, '');
+  return host === 'localhost' || host === '::1' || /^127(?:\.\d{1,3}){3}$/.test(host);
+}
+
+/**
+ * A config found inside the scanned repository is written by whoever controls that repository. It may tune the scan,
+ * but it must not send finding details off this machine, so its Ollama host must be local.
+ */
+function restrictRepositoryConfig(config: GuardConfig, source: string): LoadedConfig {
+  if (isLoopbackHost(config.explain.host)) return { config, source, warnings: [] };
+  return {
+    config: { ...config, explain: { ...config.explain, host: DEFAULT_EXPLAIN_HOST } },
+    source,
+    warnings: [
+      `Ignored explain.host "${config.explain.host}" from the repository's config: a config inside the scanned repository ` +
+        `may only use a local Ollama host, so finding details never leave this machine. To use a remote host, pass a ` +
+        `trusted config with --config. Using ${DEFAULT_EXPLAIN_HOST}.`,
+    ],
+  };
 }
 
 /**
@@ -22,15 +48,15 @@ export async function loadConfig(options: { explicitPath?: string; root: string;
     const file = path.resolve(options.cwd, options.explicitPath);
     const raw = await readConfigFile(file);
     if (raw === null) throw new ConfigError(`Config file not found: ${file}`);
-    return { config: parseConfig(raw, file), source: file };
+    return { config: parseConfig(raw, file), source: file, warnings: [] }; // chosen by the user: trusted
   }
 
   for (const name of CONFIG_FILENAMES) {
     const file = path.join(options.root, name);
     const raw = await readConfigFile(file);
-    if (raw !== null) return { config: parseConfig(raw, file), source: file };
+    if (raw !== null) return restrictRepositoryConfig(parseConfig(raw, file), file);
   }
-  return { config: configSchema.parse({}) };
+  return { config: configSchema.parse({}), warnings: [] };
 }
 
 export function parseConfig(raw: string, source = 'config'): GuardConfig {

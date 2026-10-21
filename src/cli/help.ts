@@ -21,7 +21,7 @@ Scan options
   -q, --quiet                Only print the summary line
 
 Scanners
-  gitleaks, workflow-audit, actionlint, hadolint, trivy-config, dependencies
+  gitleaks, workflow-audit, actionlint, hadolint, trivy-config, dependencies, app-security
 
 Exit codes
   0 passed   1 findings at or above --fail-on   2 usage or config error   3 a scanner failed

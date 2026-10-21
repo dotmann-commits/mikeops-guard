@@ -35,6 +35,8 @@ scanners:
   dependencies:
     enabled: true
     engine: osv-scanner # osv-scanner | trivy
+  app-security:
+    enabled: true       # env, Supabase and frontend checks for web apps
 
 # Accepted risks. Match by rule id, "scanner:rule" or fingerprint, optionally limited to a path.
 ignore: []

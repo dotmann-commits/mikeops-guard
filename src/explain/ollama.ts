@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { errorMessage } from '../core/errors.js';
+import { redactSecrets } from '../core/redact.js';
 import { severityRank } from '../core/policy.js';
 import type { ExplainOutcome, Finding, Report } from '../core/types.js';
 
@@ -82,14 +83,14 @@ export class OllamaClient {
     const body = JSON.stringify({
       model: this.options.model,
       system: SYSTEM_PROMPT,
-      prompt: buildPrompt(finding),
+      prompt: redactSecrets(buildPrompt(finding)), // nothing credential-shaped leaves for the model, even locally
       stream: false,
       options: { temperature: 0.2 },
     });
     const data = generateSchema.parse(
       await this.request('/api/generate', { method: 'POST', headers: { 'content-type': 'application/json' }, body }),
     );
-    return cleanExplanation(data.response);
+    return redactSecrets(cleanExplanation(data.response)); // a model can echo or invent credential-like text
   }
 }
 
@@ -124,6 +125,6 @@ export async function explainFindings(report: Report, client: OllamaClient, mode
   const status = failure && explanations.size === 0 ? 'failed' : 'ok';
   return {
     findings,
-    outcome: { status, model, explained: explanations.size, ...(failure ? { reason: `stopped early: ${failure}` } : {}) },
+    outcome: { status, model, explained: explanations.size, ...(failure ? { reason: redactSecrets(`stopped early: ${failure}`) } : {}) },
   };
 }

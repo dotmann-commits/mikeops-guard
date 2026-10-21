@@ -1,0 +1,6 @@
+[api]
+enabled = true
+
+[storage.buckets.avatars]
+public = true
+file_size_limit = "5MiB"

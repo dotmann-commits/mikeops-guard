@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { SEVERITIES, type Finding, type Report, type ScannerOutcome } from '../core/types.js';
 import { escapeHtml, safeUrl } from './escape.js';
 import { HTML_STYLES } from './html-styles.js';
@@ -11,6 +12,8 @@ document.querySelectorAll('[data-filter]').forEach(function (box) {
     });
   });
 });`;
+// Only this exact script may run: anything injected despite escaping would not match the hash.
+const SCRIPT_HASH = `sha256-${createHash('sha256').update(FILTER_SCRIPT).digest('base64')}`;
 
 function renderCards(report: Report): string {
   const cards = SEVERITIES.map(
@@ -24,7 +27,7 @@ function renderScannerRow(outcome: ScannerOutcome): string {
   const note = [outcome.reason, outcome.installHint].filter(Boolean).map((n) => escapeHtml(n ?? '')).join('<br>');
   return `<tr>
     <td>${escapeHtml(outcome.title)}</td>
-    <td class="status status-${outcome.status}">${outcome.status}</td>
+    <td class="status status-${outcome.status}">${outcome.status}${outcome.incomplete ? ' (not checked)' : ''}</td>
     <td>${(outcome.durationMs / 1000).toFixed(1)}s</td>
     <td>${outcome.findingCount}</td>
     <td>${note}</td>
@@ -61,9 +64,17 @@ function renderFilters(report: Report): string {
 }
 
 export function renderHtml(report: Report): string {
-  const verdict = report.passed
-    ? '<span class="verdict pass">Passed</span>'
-    : '<span class="verdict fail">Failed</span>';
+  const verdict =
+    report.status === 'failed'
+      ? '<span class="verdict fail">Failed</span>'
+      : report.status === 'passed'
+        ? '<span class="verdict pass">Passed</span>'
+        : '<span class="verdict warn">Incomplete</span>';
+  const gaps = report.scanners.filter((s) => s.incomplete);
+  const coverage =
+    gaps.length === 0
+      ? ''
+      : `<p class="coverage"><strong>Incomplete scan:</strong> ${gaps.length} scanner(s) did not run, so this report is not a clean result: ${gaps.map((s) => escapeHtml(s.title)).join(', ')}.</p>`;
   const findings =
     report.findings.length === 0
       ? '<div class="empty">No findings. Nice work.</div>'
@@ -77,7 +88,7 @@ export function renderHtml(report: Report): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src '${SCRIPT_HASH}'; base-uri 'none'; form-action 'none'">
 <title>MikeOps Guard Report</title>
 <style>${HTML_STYLES}</style>
 </head>
@@ -91,6 +102,7 @@ export function renderHtml(report: Report): string {
     </div>
     ${verdict}
   </header>
+  ${coverage}
   ${renderCards(report)}
   <h2>Scanners</h2>
   <div class="table-wrap"><table>

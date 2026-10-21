@@ -1,0 +1,1 @@
+{ "name": "tanstack-app", "private": true, "dependencies": { "@tanstack/react-start": "1.0.0" } }

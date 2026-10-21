@@ -8,13 +8,14 @@ export const SCANNER_IDS = [
   'workflow-audit',
   'gitleaks',
   'dependencies',
+  'app-security',
 ] as const;
 export type ScannerId = (typeof SCANNER_IDS)[number];
 
-export type Category = 'container' | 'iac' | 'workflow' | 'secret' | 'dependency';
+export type Category = 'container' | 'iac' | 'workflow' | 'secret' | 'dependency' | 'application';
 
 export interface Finding {
-  /** Stable hash of scanner, rule, location and message. Useful for dedupe and baselines. */
+  /** Stable hash of scanner, rule, file, message and occurrence (not the line). Useful for ignores and baselines. */
   fingerprint: string;
   scanner: ScannerId;
   ruleId: string;
@@ -40,9 +41,17 @@ export interface ScannerOutcome {
   status: ScannerStatus;
   durationMs: number;
   findingCount: number;
+  /**
+   * True when this scanner should have checked the target but did not: not installed, failed, timed out, or disabled
+   * by the config or --only/--skip. False for "nothing to check" skips such as a repository without Dockerfiles.
+   */
+  incomplete: boolean;
   reason?: string;
   installHint?: string;
 }
+
+/** passed: no findings at the threshold and every scanner ran. incomplete: no findings at the threshold, but coverage gaps. */
+export type ReportStatus = 'passed' | 'failed' | 'incomplete';
 
 export type SeverityCounts = Record<Severity, number>;
 
@@ -61,7 +70,9 @@ export interface Report {
   finishedAt: string;
   durationMs: number;
   failOn: Severity | 'none';
+  /** Policy result only: true when no kept finding is at or above failOn. Read `status` for coverage as well. */
   passed: boolean;
+  status: ReportStatus;
   summary: SeverityCounts & { total: number; ignored: number };
   scanners: ScannerOutcome[];
   findings: Finding[];

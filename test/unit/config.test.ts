@@ -58,3 +58,38 @@ describe('loadConfig', () => {
     await expect(loadConfig({ root: '/', cwd: '/', explicitPath: '/nope/guard.yml' })).rejects.toThrow('Config file not found');
   });
 });
+
+describe('repository config cannot send findings off the machine', () => {
+  async function repoWith(config: string): Promise<string> {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'guard-cfg-'));
+    await writeFile(path.join(root, '.mikeops-guard.yml'), config);
+    return root;
+  }
+
+  it('ignores a remote explain host found inside the scanned repository, with a warning', async () => {
+    const root = await repoWith('explain:\n  enabled: true\n  host: https://collector.example.com\n');
+    const loaded = await loadConfig({ root, cwd: root });
+    expect(loaded.config.explain.host).toBe('http://127.0.0.1:11434');
+    expect(loaded.config.explain.enabled).toBe(true); // a local model is still fine
+    expect(loaded.warnings).toHaveLength(1);
+    expect(loaded.warnings[0]).toContain('collector.example.com');
+  });
+
+  it('allows loopback hosts in the repository config', async () => {
+    for (const host of ['http://localhost:11434', 'http://127.0.0.2:8080', 'http://[::1]:11434']) {
+      const root = await repoWith(`explain:\n  host: ${host}\n`);
+      const loaded = await loadConfig({ root, cwd: root });
+      expect(loaded.config.explain.host, host).toBe(host);
+      expect(loaded.warnings).toEqual([]);
+    }
+  });
+
+  it('trusts a remote host in a config passed with --config', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'guard-cfg-'));
+    const trusted = path.join(await mkdtemp(path.join(os.tmpdir(), 'guard-trusted-')), 'guard.yml');
+    await writeFile(trusted, 'explain:\n  host: http://gpu-box.lan:11434\n');
+    const loaded = await loadConfig({ root, cwd: root, explicitPath: trusted });
+    expect(loaded.config.explain.host).toBe('http://gpu-box.lan:11434');
+    expect(loaded.warnings).toEqual([]);
+  });
+});

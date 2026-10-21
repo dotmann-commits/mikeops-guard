@@ -50,7 +50,10 @@ export function installHint(tool: ToolName): string {
 
 export type BinaryResolver = (name: string) => string | null;
 
-/** Looks a binary up on PATH the same way a shell would, without spawning one. */
+/**
+ * Looks a binary up on PATH the way a shell would, without spawning one. Relative entries such as "." are ignored:
+ * they resolve against the current directory, which may be the repository being scanned.
+ */
 export function resolveBinary(
   name: string,
   envPath = process.env.PATH ?? '',
@@ -58,7 +61,7 @@ export function resolveBinary(
 ): string | null {
   const extensions = platform === 'win32' ? ['.exe', '.cmd', ''] : [''];
   for (const dir of envPath.split(path.delimiter)) {
-    if (!dir) continue;
+    if (!dir || !path.isAbsolute(dir)) continue;
     for (const ext of extensions) {
       const candidate = path.join(dir, name + ext);
       if (isExecutableFile(candidate)) return candidate;

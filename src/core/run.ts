@@ -5,11 +5,12 @@ import type { GuardConfig } from '../config/schema.js';
 import { discoverFiles, isGitRepository } from './discover.js';
 import { errorMessage, ToolMissingError } from './errors.js';
 import type { ExecFn } from './exec.js';
-import { withFingerprint } from './fingerprint.js';
+import { fingerprintAll } from './fingerprint.js';
 import { applyPolicy, countBySeverity, meetsThreshold } from './policy.js';
+import { redactOptional, redactSecrets } from './redact.js';
 import type { ScanContext, Scanner } from './scanner.js';
 import { installHint, type BinaryResolver } from './tools.js';
-import type { Finding, Report, ScannerOutcome } from './types.js';
+import type { Finding, NewFinding, Report, ScannerOutcome } from './types.js';
 
 export interface RunScanOptions {
   root: string;
@@ -43,10 +44,26 @@ export async function runScan(options: RunScanOptions): Promise<Report> {
       exec: options.exec,
     };
     const enabled = options.scanners.filter((s) => config.scanners[s.id].enabled);
-    const runs = await runGrouped(
+    const ran = await runGrouped(
       enabled,
       (scanner) => scanner.tool(config) ?? scanner.id,
       (scanner) => runOne(scanner, baseContext, options),
+    );
+    // Disabled scanners are reported too, so a policy file cannot narrow a scan without it showing.
+    const runs = options.scanners.map(
+      (scanner) =>
+        ran.find((r) => r.outcome.scanner === scanner.id) ?? {
+          outcome: {
+            scanner: scanner.id,
+            title: scanner.title,
+            status: 'skipped' as const,
+            durationMs: 0,
+            findingCount: 0,
+            incomplete: true,
+            reason: 'disabled by the config or by --only/--skip',
+          },
+          findings: [],
+        },
     );
 
     const { kept, ignored } = applyPolicy(
@@ -54,6 +71,8 @@ export async function runScan(options: RunScanOptions): Promise<Report> {
       config,
     );
     const finishedAt = now();
+    const passed = !kept.some((f) => meetsThreshold(f.severity, config.failOn));
+    const status = !passed ? 'failed' : runs.some((r) => r.outcome.incomplete) ? 'incomplete' : 'passed';
     return {
       schemaVersion: 1,
       tool: { name: 'mikeops-guard', version: options.toolVersion },
@@ -62,7 +81,8 @@ export async function runScan(options: RunScanOptions): Promise<Report> {
       finishedAt: finishedAt.toISOString(),
       durationMs: finishedAt.getTime() - startedAt.getTime(),
       failOn: config.failOn,
-      passed: !kept.some((f) => meetsThreshold(f.severity, config.failOn)),
+      passed,
+      status,
       summary: { ...countBySeverity(kept), total: kept.length, ignored },
       scanners: runs.map((r) => r.outcome),
       findings: kept,
@@ -97,10 +117,11 @@ async function runGrouped(
 
 async function runOne(scanner: Scanner, base: Omit<ScanContext, 'binary'>, options: RunScanOptions): Promise<ScannerRun> {
   const started = Date.now();
-  const outcome = (fields: Omit<ScannerOutcome, 'scanner' | 'title' | 'durationMs'>): ScannerOutcome => ({
+  const outcome = (fields: Omit<ScannerOutcome, 'scanner' | 'title' | 'durationMs' | 'incomplete'>, incomplete: boolean): ScannerOutcome => ({
     scanner: scanner.id,
     title: scanner.title,
     durationMs: Date.now() - started,
+    incomplete,
     ...fields,
   });
 
@@ -111,7 +132,7 @@ async function runOne(scanner: Scanner, base: Omit<ScanContext, 'binary'>, optio
     if (!binary) {
       const status = base.config.requireTools ? 'failed' : 'skipped';
       return {
-        outcome: outcome({ status, findingCount: 0, reason: `${tool} is not installed`, installHint: installHint(tool) }),
+        outcome: outcome({ status, findingCount: 0, reason: `${tool} is not installed`, installHint: installHint(tool) }, true),
         findings: [],
       };
     }
@@ -119,16 +140,27 @@ async function runOne(scanner: Scanner, base: Omit<ScanContext, 'binary'>, optio
 
   const ctx: ScanContext = binary ? { ...base, binary } : base;
   const skipReason = scanner.skipReason(ctx);
-  if (skipReason) return { outcome: outcome({ status: 'skipped', findingCount: 0, reason: skipReason }), findings: [] };
+  if (skipReason) return { outcome: outcome({ status: 'skipped', findingCount: 0, reason: skipReason }, false), findings: [] };
 
   try {
-    const findings = (await scanner.run(ctx)).map(withFingerprint);
-    return { outcome: outcome({ status: 'ok', findingCount: findings.length }), findings };
+    const findings = fingerprintAll((await scanner.run(ctx)).map(redactFinding));
+    return { outcome: outcome({ status: 'ok', findingCount: findings.length }, false), findings };
   } catch (error) {
     const hint = error instanceof ToolMissingError && tool ? installHint(tool) : undefined;
     return {
-      outcome: outcome({ status: 'failed', findingCount: 0, reason: errorMessage(error), ...(hint ? { installHint: hint } : {}) }),
+      outcome: outcome({ status: 'failed', findingCount: 0, reason: redactSecrets(errorMessage(error)), ...(hint ? { installHint: hint } : {}) }, true),
       findings: [],
     };
   }
+}
+
+/** Scanner text can quote what it found (a workflow line, a config value), so credential formats are removed first. */
+function redactFinding(finding: NewFinding): NewFinding {
+  const remediation = redactOptional(finding.remediation);
+  return {
+    ...finding,
+    title: redactSecrets(finding.title),
+    message: redactSecrets(finding.message),
+    ...(remediation !== undefined ? { remediation } : {}),
+  };
 }

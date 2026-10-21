@@ -12,6 +12,7 @@ import { explainFindings, OllamaClient } from '../../explain/ollama.js';
 import { renderConsole } from '../../report/console.js';
 import { renderHtml } from '../../report/html.js';
 import { renderJson } from '../../report/json.js';
+import { terminalSafe } from '../../report/terminal.js';
 import { SCANNERS } from '../../scanners/registry.js';
 import type { ScanOptions } from '../args.js';
 import type { CliIo } from '../io.js';
@@ -45,7 +46,8 @@ export async function scanCommand(options: ScanOptions, io: CliIo, deps: ScanDep
   // With --json - the JSON owns stdout, so human output moves to stderr.
   const log = options.json === '-' ? io.stderr : io.stdout;
 
-  if (!options.quiet) log(loaded.source ? `Using config ${loaded.source}\n` : 'No config file found, using defaults\n');
+  if (!options.quiet) log(loaded.source ? `Using config ${terminalSafe(loaded.source)}\n` : 'No config file found, using defaults\n');
+  for (const warning of loaded.warnings) io.stderr(`Warning: ${terminalSafe(warning)}\n`); // even with --quiet
 
   let report: Report = await runScan({
     root,
@@ -73,6 +75,6 @@ export async function scanCommand(options: ScanOptions, io: CliIo, deps: ScanDep
 
   const text = renderConsole(report, { color: options.color, maxFindings: options.quiet ? 0 : options.maxFindings });
   log(options.quiet ? text.split('\n').filter((l) => l.startsWith('Summary') || l.startsWith('Result')).join('\n') + '\n' : `\n${text}`);
-  if (report.explain?.reason && !options.quiet) log(`Explain: ${report.explain.reason}\n`);
+  if (report.explain?.reason && !options.quiet) log(`Explain: ${terminalSafe(report.explain.reason)}\n`);
   return exitCodeFor(report);
 }

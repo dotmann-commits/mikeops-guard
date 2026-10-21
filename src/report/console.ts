@@ -1,4 +1,5 @@
 import { SEVERITIES, type Finding, type Report, type Severity } from '../core/types.js';
+import { terminalSafe as t } from './terminal.js';
 
 export interface ConsoleOptions {
   color: boolean;
@@ -21,13 +22,13 @@ export function renderConsole(report: Report, options: ConsoleOptions): string {
   const paint = (code: string, text: string): string => (options.color ? `${code}${text}${RESET}` : text);
   const lines: string[] = [];
 
-  lines.push(paint(BOLD, 'MikeOps Guard'), paint(DIM, `Target: ${report.target}`), '');
+  lines.push(paint(BOLD, 'MikeOps Guard'), paint(DIM, `Target: ${t(report.target)}`), '');
   lines.push('Scanners');
   for (const s of report.scanners) {
     const status = s.status === 'ok' ? paint('\x1b[32m', 'ok     ') : s.status === 'skipped' ? paint(DIM, 'skipped') : paint('\x1b[31m', 'failed ');
-    const detail = s.status === 'ok' ? `${s.findingCount} finding(s)` : (s.reason ?? '');
-    lines.push(`  ${status}  ${s.title.padEnd(44)} ${paint(DIM, detail)}`);
-    if (s.installHint) lines.push(`           ${paint(DIM, s.installHint)}`);
+    const detail = s.status === 'ok' ? `${s.findingCount} finding(s)` : t(s.reason ?? '');
+    lines.push(`  ${status}  ${t(s.title).padEnd(44)} ${paint(DIM, detail)}`);
+    if (s.installHint) lines.push(`           ${paint(DIM, t(s.installHint))}`);
   }
   lines.push('');
 
@@ -44,22 +45,27 @@ export function renderConsole(report: Report, options: ConsoleOptions): string {
     .map((s) => paint(SEVERITY_COLORS[s], `${report.summary[s]} ${s}`))
     .join(', ');
   lines.push(`Summary: ${report.summary.total} finding(s)${counts ? ` (${counts})` : ''}, ${report.summary.ignored} ignored`);
-  const verdict = report.passed
-    ? paint('\x1b[1;32m', 'PASSED')
-    : paint('\x1b[1;31m', `FAILED: findings at or above "${report.failOn}"`);
-  lines.push(`Result:  ${verdict}`);
+  lines.push(`Result:  ${verdictLine(report, paint)}`);
   return `${lines.join('\n')}\n`;
 }
 
 function renderFinding(finding: Finding, paint: (code: string, text: string) => string): string[] {
-  const where = finding.file ? `${finding.file}${finding.line ? `:${finding.line}` : ''}` : 'repository';
+  const where = finding.file ? `${t(finding.file)}${finding.line ? `:${finding.line}` : ''}` : 'repository';
   const lines = [
-    `  ${paint(SEVERITY_COLORS[finding.severity], finding.severity.toUpperCase().padEnd(8))} ${finding.title}`,
-    `           ${paint(DIM, `${where}  [${finding.scanner}/${finding.ruleId}]`)}`,
-    `           ${finding.message}`,
+    `  ${paint(SEVERITY_COLORS[finding.severity], finding.severity.toUpperCase().padEnd(8))} ${t(finding.title)}`,
+    `           ${paint(DIM, `${where}  [${finding.scanner}/${t(finding.ruleId)}]`)}`,
+    `           ${t(finding.message)}`,
   ];
-  if (finding.remediation) lines.push(`           Fix: ${finding.remediation}`);
-  if (finding.explanation) lines.push(...finding.explanation.split('\n').map((l) => `           ${paint(DIM, l)}`));
+  if (finding.remediation) lines.push(`           Fix: ${t(finding.remediation)}`);
+  if (finding.explanation) lines.push(...t(finding.explanation).split('\n').map((l) => `           ${paint(DIM, l)}`));
   lines.push('');
   return lines;
+}
+
+function verdictLine(report: Report, paint: (code: string, text: string) => string): string {
+  if (report.status === 'failed') return paint('\x1b[1;31m', `FAILED: findings at or above "${report.failOn}"`);
+  if (report.status === 'passed') return paint('\x1b[1;32m', 'PASSED');
+  const missing = report.scanners.filter((s) => s.incomplete).map((s) => s.scanner);
+  // Never a clean pass: say what was not checked.
+  return paint('\x1b[1;33m', `INCOMPLETE: nothing at or above "${report.failOn}", but ${missing.length} scanner(s) did not run: ${missing.join(', ')}`);
 }

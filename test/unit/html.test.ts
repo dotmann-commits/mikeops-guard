@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { withFingerprint } from '../../src/core/fingerprint.js';
 import type { Report } from '../../src/core/types.js';
@@ -13,8 +14,9 @@ const report: Report = {
   durationMs: 1000,
   failOn: 'high',
   passed: false,
+  status: 'failed',
   summary: { critical: 0, high: 1, medium: 0, low: 0, info: 0, total: 1, ignored: 0 },
-  scanners: [{ scanner: 'workflow-audit', title: 'Audit', status: 'ok', durationMs: 5, findingCount: 1 }],
+  scanners: [{ scanner: 'workflow-audit', title: 'Audit', status: 'ok', durationMs: 5, findingCount: 1, incomplete: false }],
   findings: [
     withFingerprint({
       scanner: 'workflow-audit',
@@ -62,5 +64,24 @@ describe('escape helpers', () => {
     expect(safeUrl('data:text/html,hi')).toBeNull();
     expect(safeUrl('not a url')).toBeNull();
     expect(safeUrl('https://osv.dev/x')).toBe('https://osv.dev/x');
+  });
+
+  it('allows only its own script, by hash, and no other inline script', () => {
+    const html = renderHtml(report);
+    const csp = /Content-Security-Policy" content="([^"]+)"/.exec(html)?.[1] ?? '';
+    const script = /<script>([\s\S]*?)<\/script>/.exec(html)?.[1] ?? '';
+    const expected = `'sha256-${createHash('sha256').update(script).digest('base64')}'`;
+    const scriptSrc = csp.split(';').map((d) => d.trim()).find((d) => d.startsWith('script-src')) ?? '';
+    expect(scriptSrc).toBe(`script-src ${expected}`);
+    expect(csp).toContain("default-src 'none'");
+    expect(csp).toContain("base-uri 'none'");
+  });
+
+  it('labels an incomplete scan as incomplete, never as passed', () => {
+    const incomplete = renderHtml({ ...report, passed: true, status: 'incomplete', findings: [],
+      scanners: [{ scanner: 'gitleaks', title: 'Secret detection', status: 'skipped', durationMs: 0, findingCount: 0, incomplete: true, reason: 'gitleaks is not installed' }] });
+    expect(incomplete).toContain('verdict warn">Incomplete');
+    expect(incomplete).not.toContain('verdict pass');
+    expect(incomplete).toContain('Incomplete scan:');
   });
 });

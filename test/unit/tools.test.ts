@@ -15,6 +15,21 @@ describe('resolveBinary', () => {
     expect(resolveBinary('gitleaks', '', 'darwin')).toBeNull();
   });
 
+  it('never uses relative PATH entries, which could point into the scanned repository', async () => {
+    const repo = await mkdtemp(path.join(os.tmpdir(), 'guard-path-'));
+    const planted = path.join(repo, 'gitleaks');
+    await writeFile(planted, '#!/bin/sh\necho pwned\n');
+    await chmod(planted, 0o755);
+    const previous = process.cwd();
+    process.chdir(repo);
+    try {
+      expect(resolveBinary('gitleaks', ['.', 'bin', ''].join(path.delimiter), 'linux')).toBeNull();
+      expect(resolveBinary('gitleaks', [repo].join(path.delimiter), 'linux')).toBe(planted); // absolute entries still work
+    } finally {
+      process.chdir(previous);
+    }
+  });
+
   it('gives install guidance', () => {
     expect(installHint('osv-scanner')).toContain('brew install osv-scanner');
   });

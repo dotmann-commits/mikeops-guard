@@ -59,7 +59,7 @@ describe('real scanner integrations', { timeout: REAL_TOOL_TIMEOUT_MS }, () => {
 
   it.skipIf(!has('gitleaks'))('gitleaks finds a secret that only exists in git history, redacted', async () => {
     const report = await scan(repo, 'gitleaks');
-    expect(report.scanners[0]?.status).toBe('ok');
+    expect(report.scanners.find((s) => s.scanner === 'gitleaks')?.status).toBe('ok');
     const leak = report.findings.find((f) => f.file === 'deploy.sh');
     expect(leak).toMatchObject({ severity: 'critical', category: 'secret', line: 1 });
     expect(leak?.message).toContain('git history');
@@ -75,7 +75,7 @@ describe('real scanner integrations', { timeout: REAL_TOOL_TIMEOUT_MS }, () => {
 
   it.skipIf(!has('actionlint'))('actionlint flags untrusted input in the PR workflow', async () => {
     const report = await scan(repo, 'actionlint');
-    expect(report.scanners[0]?.status).toBe('ok');
+    expect(report.scanners.find((s) => s.scanner === 'actionlint')?.status).toBe('ok');
     const expression = report.findings.find((f) => f.ruleId === 'actionlint-expression');
     // actionlint reports the line of the run: key. The built-in audit points at the exact line inside it.
     expect(expression).toMatchObject({ file: '.github/workflows/pr-preview.yml', line: 14 });
@@ -83,7 +83,7 @@ describe('real scanner integrations', { timeout: REAL_TOOL_TIMEOUT_MS }, () => {
 
   it.skipIf(!has('trivy'))('trivy config reports Dockerfile misconfigurations', async () => {
     const report = await scan(repo, 'trivy-config');
-    expect(report.scanners[0]?.status).toBe('ok');
+    expect(report.scanners.find((s) => s.scanner === 'trivy-config')?.status).toBe('ok');
     expect(report.findings.some((f) => f.file === 'docker/app.Dockerfile')).toBe(true);
   });
 
@@ -92,7 +92,7 @@ describe('real scanner integrations', { timeout: REAL_TOOL_TIMEOUT_MS }, () => {
     await writeFile(lockfile, 'jinja2==2.4.1\n');
     try {
       const report = await scan(repo, 'dependencies');
-      expect(report.scanners[0]?.status).toBe('ok');
+      expect(report.scanners.find((s) => s.scanner === 'dependencies')?.status).toBe('ok');
       expect(report.findings.some((f) => f.file === 'requirements.txt' && f.title.startsWith('jinja2@2.4.1'))).toBe(true);
     } finally {
       await rm(lockfile, { force: true });

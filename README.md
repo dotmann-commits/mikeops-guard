@@ -44,6 +44,7 @@ Most incidents in small teams are not exotic. They come from a token committed s
 | Dockerfiles | Best practices, pinned base images, `ADD` vs `COPY`, apt hygiene | Hadolint |
 | Containers and IaC | Dockerfile, Kubernetes, Helm and Terraform misconfiguration | Trivy (`trivy config`) |
 | Dependencies | Known vulnerabilities in lockfiles for npm, pnpm, yarn, pip, Go, Cargo, Maven and more | osv-scanner (default) or Trivy |
+| Web apps (AI-generated or not) | Server secrets in public frontend variables (`VITE_`, `NEXT_PUBLIC_`, `EXPO_PUBLIC_` and similar), the Supabase service role key in browser code, Supabase tables without Row Level Security, `using (true)` write policies, public storage buckets | Built in (`app-security`) |
 | Reports | Terminal summary, JSON for tooling, self-contained HTML for people | Built in |
 | AI explanations | Optional plain-English risk and fix notes from a **local** Ollama model. No paid APIs, nothing leaves your machine. | Ollama |
 
@@ -51,8 +52,21 @@ Most incidents in small teams are not exotic. They come from a token committed s
 
 - **Read-only.** Scans never write to the target repository. Scanner output goes to a private temp directory that is deleted after the run. The test suite checks this by hashing the target before and after a scan.
 - **No shell.** External tools are started with argument arrays, never through a shell, so file names and config values cannot inject commands.
-- **Graceful degradation.** A missing scanner is skipped with an install hint. Use `--require-tools` in CI so a missing scanner fails the build instead of silently passing.
-- **Untrusted output is treated as data.** Every scanner's JSON is validated with zod. The HTML report escapes every value, links only `http(s)` URLs and ships a strict Content Security Policy with no external resources.
+- **Never a silent pass.**
+  - A scan where a scanner is missing, crashed, timed out or was disabled (by the config or `--only`/`--skip`) is reported as **INCOMPLETE**, never PASSED, and names what did not run.
+  - Use `--require-tools` in CI so a missing scanner also fails the build.
+  - A scanner with nothing to check, for example no Dockerfiles, is not a gap.
+- **Untrusted output is treated as data.**
+  - Every scanner's JSON is validated with zod.
+  - Terminal output has control characters and bidi overrides removed, so repository content cannot hide findings or fake a verdict.
+  - The HTML report escapes every value, links only `http(s)` URLs, and allows only its own script by hash under a strict Content Security Policy.
+- **Secrets stay out of reports.**
+  - Gitleaks values are never read.
+  - Well-known credential formats are also redacted from every scanner message, error and AI explanation, and from anything sent to Ollama.
+- **The scanned repository cannot redirect data.** Its own `.mikeops-guard.yml` may only use a local Ollama host. A remote host needs a trusted `--config`.
+- **Binaries come from absolute PATH entries only**, so a scanned repository cannot plant a fake scanner.
+
+Guard is static analysis. It finds known patterns and can miss real issues or flag safe code. Confirm findings before acting, and treat a clean result as "no known patterns found", not as proof of security.
 
 ## Install
 
@@ -117,6 +131,10 @@ mikeops-guard init                         # write a starter .mikeops-guard.yml
 
 A policy failure (`1`) takes priority over a scanner failure (`3`), because it is the more actionable signal.
 
+The JSON report's `status` is the full verdict: `passed` (no findings at the threshold and every applicable scanner ran), `failed` (findings at the threshold), or `incomplete` (no findings at the threshold, but coverage gaps). Each scanner outcome carries `incomplete: true` when it should have run but did not. `passed` keeps its 0.1.0 meaning, the policy result only.
+
+Fingerprints ignore the line number, so ignore rules keep matching when code moves. Identical findings in one file are numbered. Ignore rules written with 0.1.0 fingerprints still match.
+
 ## Configuration
 
 MikeOps Guard looks for `.mikeops-guard.yml` (or `.yaml` / `.json`) in the root of the scanned repository, so each repo carries its own policy. Pass `--config <file>` to use another file. Every key is optional. Unknown keys are rejected so typos do not silently disable a check.
@@ -141,6 +159,7 @@ scanners:
   dependencies:
     enabled: true
     engine: osv-scanner   # osv-scanner | trivy
+  app-security: { enabled: true }
 
 ignore:                   # accepted risks, matched by rule id, "scanner:rule" or fingerprint
   - rule: DL3008

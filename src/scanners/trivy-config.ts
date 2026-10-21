@@ -51,6 +51,13 @@ export function parseTrivyConfig(stdout: string, root: string): NewFinding[] {
   );
 }
 
+/**
+ * Guard's own discovery never enters these, and they hold no project configuration. Skipping them made `trivy config`
+ * up to about 2x faster on real repositories with identical findings (docs/AUDIT-2026-10-18.md, B3). Dependency
+ * scanning does not use this list: installed packages can matter there.
+ */
+export const TRIVY_CONFIG_ALWAYS_SKIPPED = ['**/node_modules', '**/.git'] as const;
+
 export function skipDirArgs(exclude: readonly string[]): string[] {
   return exclude.flatMap((pattern) => ['--skip-dirs', pattern.replace(/\/\*\*$/, '')]);
 }
@@ -69,7 +76,7 @@ export const trivyConfigScanner: Scanner = {
       '--quiet',
       '--exit-code',
       '0',
-      ...skipDirArgs(ctx.config.exclude),
+      ...skipDirArgs([...TRIVY_CONFIG_ALWAYS_SKIPPED, ...ctx.config.exclude]),
       '.',
     ]);
     return parseTrivyConfig(stdout, ctx.root);

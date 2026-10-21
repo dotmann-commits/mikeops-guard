@@ -70,26 +70,39 @@ describe('mikeops-guard scan (end to end)', () => {
     );
     expect(report.findings.some((f) => f.file === '.github/workflows/ci.yml')).toBe(false);
 
-    const skipped = report.scanners.filter((s) => s.status === 'skipped');
-    expect(skipped.map((s) => s.scanner)).toEqual(['gitleaks', 'actionlint', 'hadolint', 'trivy-config', 'dependencies']);
-    expect(skipped.every((s) => s.installHint?.includes('brew install'))).toBe(true);
+    const missingTools = report.scanners.filter((s) => s.status === 'skipped' && s.incomplete);
+    expect(missingTools.map((s) => s.scanner)).toEqual(['gitleaks', 'actionlint', 'hadolint', 'trivy-config', 'dependencies']);
+    expect(missingTools.every((s) => s.installHint?.includes('brew install'))).toBe(true);
+    // Nothing for app-security to check in this fixture: a not-applicable skip, not a coverage gap.
+    expect(report.scanners.find((s) => s.scanner === 'app-security')).toMatchObject({ status: 'skipped', incomplete: false });
 
     expect(await readFile(path.join(outDir, 'report.html'), 'utf8')).toContain('pull_request_target checks out untrusted PR code');
     expect(run.out()).toContain('FAILED');
   });
 
-  it('passes when the threshold is above every finding', async () => {
+  it('is incomplete, never a clean pass, when scanners could not run', async () => {
     const run = capture(outDir);
     const code = await main(['scan', repo, '--fail-on', 'none', '--quiet'], run.io, { resolveBinary: noTools });
-    expect(code).toBe(0);
-    expect(run.out()).toContain('PASSED');
+    expect(code).toBe(0); // optional tools missing: the exit code is unchanged, the verdict is not "PASSED"
+    expect(run.out()).toContain('INCOMPLETE');
+    expect(run.out()).not.toContain('PASSED');
+  });
+
+  it('passes only when every selected scanner that applies actually ran', async () => {
+    const run = capture(outDir);
+    await main(['scan', repo, '--fail-on', 'none', '--json', '-', '--only', 'workflow-audit'], run.io, { resolveBinary: noTools });
+    const report = JSON.parse(run.out()) as Report;
+    expect(report.status).toBe('incomplete'); // the other five were not selected, and the report says so
+    const ran = report.scanners.filter((s) => !s.incomplete);
+    expect(ran.map((s) => s.scanner)).toEqual(['workflow-audit']);
   });
 
   it('writes clean JSON to stdout with --json -', async () => {
     const run = capture(outDir);
     await main(['scan', repo, '--json', '-', '--only', 'workflow-audit'], run.io, { resolveBinary: noTools });
     const report = JSON.parse(run.out()) as Report;
-    expect(report.scanners.map((s) => s.scanner)).toEqual(['workflow-audit']);
+    expect(report.scanners.filter((s) => s.status !== 'skipped' || !s.incomplete).map((s) => s.scanner)).toEqual(['workflow-audit']);
+    expect(report.scanners.find((s) => s.scanner === 'gitleaks')?.reason).toBe('disabled by the config or by --only/--skip');
     expect(run.err()).toContain('Summary');
   });
 

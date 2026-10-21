@@ -5,6 +5,13 @@ import { createMatcher, toPosix } from './glob.js';
 export interface DiscoveredFiles {
   dockerfiles: string[];
   workflows: string[];
+  /** .env, .env.local, .env.production and similar (examples and templates included: their variable names matter). */
+  envFiles: string[];
+  sqlFiles: string[];
+  /** JavaScript and TypeScript source, including Vue, Svelte and Astro components. */
+  sourceFiles: string[];
+  /** supabase/config.toml files. */
+  supabaseConfigs: string[];
   fileCount: number;
 }
 
@@ -20,10 +27,17 @@ export function isWorkflow(relativePath: string): boolean {
   return WORKFLOW_PATH.test(relativePath);
 }
 
+const ENV_FILE = /^\.env(?:\.[A-Za-z0-9_-]+)*$/;
+const SOURCE_FILE = /\.(?:[cm]?[jt]sx?|vue|svelte|astro)$/;
+
+export function isEnvFile(relativePath: string): boolean {
+  return ENV_FILE.test(path.posix.basename(relativePath));
+}
+
 /** Walks the target read-only. Symlinks are not followed so a scan never leaves the root. */
 export async function discoverFiles(root: string, exclude: readonly string[]): Promise<DiscoveredFiles> {
   const excluded = createMatcher(exclude);
-  const result: DiscoveredFiles = { dockerfiles: [], workflows: [], fileCount: 0 };
+  const result: DiscoveredFiles = { dockerfiles: [], workflows: [], envFiles: [], sqlFiles: [], sourceFiles: [], supabaseConfigs: [], fileCount: 0 };
   const pending = [''];
 
   while (pending.length > 0) {
@@ -38,12 +52,15 @@ export async function discoverFiles(root: string, exclude: readonly string[]): P
         result.fileCount++;
         if (isDockerfile(rel)) result.dockerfiles.push(rel);
         if (isWorkflow(rel)) result.workflows.push(rel);
+        if (isEnvFile(rel)) result.envFiles.push(rel);
+        if (rel.endsWith('.sql')) result.sqlFiles.push(rel);
+        if (SOURCE_FILE.test(rel) && !rel.endsWith('.d.ts')) result.sourceFiles.push(rel);
+        if (rel === 'supabase/config.toml' || rel.endsWith('/supabase/config.toml')) result.supabaseConfigs.push(rel);
       }
     }
   }
 
-  result.dockerfiles.sort();
-  result.workflows.sort();
+  for (const list of [result.dockerfiles, result.workflows, result.envFiles, result.sqlFiles, result.sourceFiles, result.supabaseConfigs]) list.sort();
   return result;
 }
 

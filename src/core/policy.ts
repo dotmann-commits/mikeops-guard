@@ -1,5 +1,6 @@
 import type { GuardConfig, IgnoreRule } from '../config/schema.js';
 import { EXIT_CODES, type ExitCode } from './exit-codes.js';
+import { legacyFingerprint } from './fingerprint.js';
 import { createMatcher, globToRegExp } from './glob.js';
 import { SEVERITIES, type Finding, type Report, type Severity, type SeverityCounts } from './types.js';
 
@@ -25,7 +26,11 @@ export function compareFindings(a: Finding, b: Finding): number {
 
 function ruleMatches(rule: IgnoreRule, finding: Finding): boolean {
   const ruleId = rule.rule;
-  const idMatches = ruleId === finding.ruleId || ruleId === `${finding.scanner}:${finding.ruleId}` || ruleId === finding.fingerprint;
+  const idMatches =
+    ruleId === finding.ruleId ||
+    ruleId === `${finding.scanner}:${finding.ruleId}` ||
+    ruleId === finding.fingerprint ||
+    ruleId === legacyFingerprint(finding);
   if (!idMatches) return false;
   if (!rule.path) return true;
   return finding.file !== undefined && globToRegExp(rule.path).test(finding.file);

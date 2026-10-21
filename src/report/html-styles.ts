@@ -22,6 +22,8 @@ h2 { font-size: 18px; margin: 32px 0 12px; }
 .verdict { padding: 6px 14px; border-radius: 999px; font-weight: 600; font-size: 14px; color: #fff; }
 .verdict.pass { background: var(--ok); }
 .verdict.fail { background: var(--critical); }
+.verdict.warn { background: var(--medium); color: #1f1300; }
+.coverage { border-left: 4px solid var(--medium); padding: 8px 12px; margin: 12px 0; }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
 .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
 .card .n { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }

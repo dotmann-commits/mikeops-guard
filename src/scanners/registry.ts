@@ -1,5 +1,6 @@
 import type { Scanner } from '../core/scanner.js';
 import { actionlintScanner } from './actionlint.js';
+import { appSecurityScanner } from './app-security/index.js';
 import { dependenciesScanner } from './dependencies.js';
 import { gitleaksScanner } from './gitleaks.js';
 import { hadolintScanner } from './hadolint.js';
@@ -14,4 +15,5 @@ export const SCANNERS: readonly Scanner[] = [
   hadolintScanner,
   trivyConfigScanner,
   dependenciesScanner,
+  appSecurityScanner,
 ];
