@@ -24,6 +24,13 @@ export class ExecTimeoutError extends GuardError {
 
 export class ScannerError extends GuardError {}
 
+/** The run was interrupted (Ctrl+C, SIGTERM or a cancelled CI job). No report is written for a partial run. */
+export class CancelledError extends GuardError {
+  constructor() {
+    super('Scan cancelled. Running scanners were stopped and temporary files removed.');
+  }
+}
+
 export function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error);

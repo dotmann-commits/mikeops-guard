@@ -11,6 +11,8 @@ export interface OllamaOptions {
   model: string;
   timeoutMs: number;
   fetch?: FetchFn;
+  /** Cancels in-flight requests when the user stops the run. */
+  signal?: AbortSignal;
 }
 
 const tagsSchema = z.object({ models: z.array(z.object({ name: z.string() })) });
@@ -60,7 +62,9 @@ export class OllamaClient {
 
   private async request(pathname: string, init?: RequestInit): Promise<unknown> {
     const url = new URL(pathname, this.options.host);
-    const response = await this.fetchFn(url, { ...init, signal: AbortSignal.timeout(this.options.timeoutMs) });
+    const timeout = AbortSignal.timeout(this.options.timeoutMs);
+    const signal = this.options.signal ? AbortSignal.any([timeout, this.options.signal]) : timeout;
+    const response = await this.fetchFn(url, { ...init, signal });
     if (!response.ok) throw new Error(`Ollama returned HTTP ${response.status} for ${url.pathname}`);
     return response.json();
   }

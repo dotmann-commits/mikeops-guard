@@ -19,7 +19,7 @@ export async function runTool(
   okCodes: readonly number[] = [0],
 ): Promise<ExecResult> {
   const binary = requireBinary(ctx);
-  const result = await ctx.exec(binary, args, { cwd: ctx.root, timeoutMs: ctx.timeoutMs });
+  const result = await ctx.exec(binary, args, { cwd: ctx.root, timeoutMs: ctx.timeoutMs, signal: ctx.signal });
   if (!okCodes.includes(result.code)) {
     const detail = stderrTail(result.stderr) || stderrTail(result.stdout) || 'no output';
     throw new ScannerError(`${path.basename(binary)} exited with code ${result.code}: ${detail}`);

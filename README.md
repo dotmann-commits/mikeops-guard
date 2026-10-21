@@ -70,7 +70,7 @@ Guard is static analysis. It finds known patterns and can miss real issues or fl
 
 ## Install
 
-Requires Node.js 20 or newer.
+Requires Node.js 20.3 or newer.
 
 ```bash
 git clone https://github.com/dotmann-commits/mikeops-guard.git
@@ -128,6 +128,7 @@ mikeops-guard init                         # write a starter .mikeops-guard.yml
 | `1` | Policy failed. At least one finding at or above `failOn`. |
 | `2` | Usage or config error, for example an unknown flag or invalid config. |
 | `3` | A scanner crashed, or was missing with `requireTools` on. |
+| `130` | Cancelled with Ctrl+C or SIGTERM. Scanners were stopped, temporary files removed, and no report was written. |
 
 A policy failure (`1`) takes priority over a scanner failure (`3`), because it is the more actionable signal.
 

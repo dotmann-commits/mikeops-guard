@@ -3,7 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { GuardConfig } from '../config/schema.js';
 import { discoverFiles, isGitRepository } from './discover.js';
-import { errorMessage, ToolMissingError } from './errors.js';
+import { CancelledError, errorMessage, ToolMissingError } from './errors.js';
 import type { ExecFn } from './exec.js';
 import { fingerprintAll } from './fingerprint.js';
 import { applyPolicy, countBySeverity, meetsThreshold } from './policy.js';
@@ -20,6 +20,8 @@ export interface RunScanOptions {
   resolveBinary: BinaryResolver;
   toolVersion: string;
   now?: () => Date;
+  /** Aborting stops every running scanner. runScan then rejects with CancelledError instead of returning a partial report. */
+  signal?: AbortSignal;
 }
 
 type BaseContext = Omit<ScanContext, 'binary' | 'skipFile'>;
@@ -36,6 +38,8 @@ export async function runScan(options: RunScanOptions): Promise<Report> {
   const now = options.now ?? (() => new Date());
   const startedAt = now();
   const { root, config } = options;
+  const signal = options.signal ?? new AbortController().signal;
+  if (signal.aborted) throw new CancelledError();
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'mikeops-guard-'));
 
   try {
@@ -47,6 +51,7 @@ export async function runScan(options: RunScanOptions): Promise<Report> {
       tempDir,
       timeoutMs: config.timeoutSeconds * 1000,
       exec: options.exec,
+      signal,
     };
     const enabled = options.scanners.filter((s) => config.scanners[s.id].enabled);
     const ran = await runGrouped(
@@ -54,6 +59,8 @@ export async function runScan(options: RunScanOptions): Promise<Report> {
       (scanner) => scanner.tool(config) ?? scanner.id,
       (scanner) => runOne(scanner, baseContext, options),
     );
+    // A cancelled run is not a result: failed scanners here mean "interrupted", not "broken", so no report is built.
+    if (signal.aborted) throw new CancelledError();
     // Disabled scanners are reported too, so a policy file cannot narrow a scan without it showing.
     const runs = options.scanners.map(
       (scanner) =>
@@ -130,6 +137,7 @@ async function runOne(scanner: Scanner, base: BaseContext, options: RunScanOptio
     ...fields,
   });
 
+  if (base.signal.aborted) throw new CancelledError();
   const tool = scanner.tool(base.config);
   let binary: string | undefined;
   if (tool) {
@@ -153,6 +161,7 @@ async function runOne(scanner: Scanner, base: BaseContext, options: RunScanOptio
     const findings = fingerprintAll((await scanner.run(ctx)).map(redactFinding));
     return { outcome: outcome({ status: 'ok', findingCount: findings.length, ...skippedFields(skipped) }, skipped.some((s) => s.affectsCoverage)), findings };
   } catch (error) {
+    if (error instanceof CancelledError) throw error;
     const hint = error instanceof ToolMissingError && tool ? installHint(tool) : undefined;
     return {
       outcome: outcome({ status: 'failed', findingCount: 0, reason: redactSecrets(errorMessage(error)), ...(hint ? { installHint: hint } : {}) }, true),

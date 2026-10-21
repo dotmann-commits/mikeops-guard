@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22] # package.json engines: >=20
+        node: [20, 22] # package.json engines: >=20.3
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -27,9 +27,10 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
-      - run: npm test
+      # Build first: the Ctrl+C test runs the built CLI as a real child process.
       - run: npm run build
       - run: node dist/cli/index.js --version
+      - run: npm test
 
   dogfood:
     needs: check

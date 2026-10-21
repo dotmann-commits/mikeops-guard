@@ -16,6 +16,8 @@ export interface ScanContext {
   exec: ExecFn;
   /** Absolute path of the external binary, when the scanner needs one. */
   binary?: string;
+  /** Aborted when the user cancels the run. Pass it to anything slow. */
+  signal: AbortSignal;
   /**
    * Records a file the scanner could not check. When affectsCoverage is true the scanner is reported as incomplete,
    * so a partial check never reads as a full one.

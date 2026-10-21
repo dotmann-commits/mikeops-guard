@@ -31,6 +31,8 @@ See [the audit](../AUDIT-2026-10-18.md) for evidence, measurements and remaining
   - Its config cannot send findings to a remote Ollama host.
   - Relative PATH entries are never used to find scanners.
 - **Fingerprints (version 2) ignore line numbers.** Version 1 ignore rules still match.
+- **Hostile repositories cannot exhaust memory or hide gaps (21 October 2026).** File reads are capped and bounded in parallel, and every file that was not checked is listed in the report.
+- **No orphaned processes (21 October 2026).** Timeouts and Ctrl+C stop each scanner's whole process group and remove temp files.
 - **New `app-security` scanner:**
   - checks: public frontend secrets, the Supabase service role in browser code, tables without RLS, permissive write policies and public buckets;
   - benchmarked on labelled fixtures and real projects.

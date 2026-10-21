@@ -1,4 +1,4 @@
-import { ConfigError, GuardError, UsageError } from '../core/errors.js';
+import { CancelledError, ConfigError, GuardError, UsageError } from '../core/errors.js';
 import { EXIT_CODES } from '../core/exit-codes.js';
 import { parseCliArgs } from './args.js';
 import { doctorCommand } from './commands/doctor.js';
@@ -26,6 +26,10 @@ export async function main(argv: readonly string[], io: CliIo, deps: ScanDepende
         return await scanCommand(parsed.options, io, deps);
     }
   } catch (error) {
+    if (error instanceof CancelledError) {
+      io.stderr(`\nmikeops-guard: ${error.message}\n`);
+      return EXIT_CODES.cancelled;
+    }
     if (error instanceof GuardError) {
       io.stderr(`mikeops-guard: ${error.message}\n`);
       return error instanceof ConfigError || error instanceof UsageError ? EXIT_CODES.usage : EXIT_CODES.scannerFailed;

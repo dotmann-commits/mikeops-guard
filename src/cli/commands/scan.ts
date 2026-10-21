@@ -1,7 +1,7 @@
 import { mkdir, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { loadConfig } from '../../config/load.js';
-import { UsageError } from '../../core/errors.js';
+import { CancelledError, UsageError } from '../../core/errors.js';
 import { execCommand } from '../../core/exec.js';
 import { exitCodeFor } from '../../core/policy.js';
 import { runScan } from '../../core/run.js';
@@ -22,6 +22,8 @@ import { applyCliOverrides } from './overrides.js';
 export interface ScanDependencies {
   scanners?: readonly Scanner[];
   resolveBinary?: BinaryResolver;
+  /** Aborted on Ctrl+C or SIGTERM by the CLI entry point. */
+  signal?: AbortSignal;
 }
 
 async function resolveTarget(cwd: string, target: string): Promise<string> {
@@ -56,6 +58,7 @@ export async function scanCommand(options: ScanOptions, io: CliIo, deps: ScanDep
     exec: execCommand,
     resolveBinary: deps.resolveBinary ?? ((name) => resolveBinary(name, io.env.PATH ?? '')),
     toolVersion: toolVersion(),
+    ...(deps.signal ? { signal: deps.signal } : {}),
   });
 
   if (config.explain.enabled && report.findings.length > 0) {
@@ -64,8 +67,10 @@ export async function scanCommand(options: ScanOptions, io: CliIo, deps: ScanDep
       host: config.explain.host,
       model: config.explain.model,
       timeoutMs: config.explain.timeoutSeconds * 1000,
+      ...(deps.signal ? { signal: deps.signal } : {}),
     });
     const result = await explainFindings(report, client, config.explain.model, config.explain.maxFindings);
+    if (deps.signal?.aborted) throw new CancelledError();
     report = { ...report, findings: result.findings, explain: result.outcome };
   }
 
