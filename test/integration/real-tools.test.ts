@@ -51,7 +51,7 @@ describe('real scanner integrations', { timeout: REAL_TOOL_TIMEOUT_MS }, () => {
     // Remove the secret again: it must still be found in history.
     await writeFile(path.join(repo, 'deploy.sh'), 'export GITHUB_TOKEN="$TOKEN"\n');
     git(repo, 'commit', '-qam', 'use env var');
-  });
+  }, REAL_TOOL_TIMEOUT_MS); // the describe timeout does not cover hooks, and git setup can pass 10 s on a busy machine
 
   afterAll(async () => {
     await rm(repo, { recursive: true, force: true });
