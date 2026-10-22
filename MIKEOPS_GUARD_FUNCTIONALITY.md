@@ -2,7 +2,7 @@
 
 **MikeOps Guard finds exposed secrets, risky GitHub Actions, Dockerfile problems and vulnerable dependencies before you ship.**
 
-- **What it is:** an open-source DevSecOps command-line tool (MIT licence, version 0.1.0), by Michael Awude (MikeOps).
+- **What it is:** an open-source DevSecOps command-line tool (MIT licence, version 0.2.0), by Michael Awude (MikeOps).
 - **How it works:** it runs proven free scanners plus its own GitHub Actions security audit, and merges the results into one prioritised list.
 - **What you get:** a terminal summary, JSON and HTML reports, and an exit code your CI pipeline can act on.
 - **Source:** https://github.com/dotmann-commits/mikeops-guard

@@ -3,7 +3,7 @@
 Published 2026-10-17 as a public GitHub repo: https://github.com/dotmann-commits/mikeops-guard
 
 - `main` is protected only by CI (check plus dogfood). Both passed on the first push.
-- Releases are git tags (`v0.1.0` first). Users pin the action by the tag's commit SHA, with the tag in a comment.
+- Releases are git tags (`v0.1.0` on 2026-10-17, `v0.2.0` on 2026-10-22). Users pin the action by the tag's commit SHA, with the tag in a comment.
 - Not on npm yet. A prebuilt `dist/` bundle so the action skips `npm ci` is on the [[Future Roadmap]].
 
 ## Releasing a new version

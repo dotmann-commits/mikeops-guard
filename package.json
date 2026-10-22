@@ -1,6 +1,6 @@
 {
   "name": "mikeops-guard",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "DevSecOps CLI that finds security issues and deployment risks in a repository before you ship.",
   "license": "MIT",
   "author": "Michael Awude (MikeOps)",
