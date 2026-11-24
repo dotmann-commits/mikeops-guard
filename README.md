@@ -371,9 +371,11 @@ the expected number of deterministic findings. Timings are machine-specific; com
 
 Integration tests in `test/integration/real-tools.test.ts` run the real scanners whenever they are on `PATH`, and are skipped otherwise. One test plants a randomly generated token in a throwaway git repo's history and checks that Gitleaks finds it and that the report never contains the value.
 
-## Hackathon demo
+## Interactive demo
 
 `npm run demo` copies the dedicated fixture to a temporary directory, materializes an invisible Unicode Tag payload, starts the built stdio MCP server through the official client, and scans a poisoned Cursor rules file, MCP launcher, Claude hook, GitHub workflow and Supabase migration. It then applies deterministic agent-style fixes and requires the second MCP scan to return zero findings. The checked-in fixture is excluded from MikeOps Guard's own policy scan.
+
+To see the GitHub Action running live with SARIF alerts, Markdown Job Summaries and downloadable HTML reports, inspect the public showcase repository at [dotmann-commits/mikeops-guard-showcase](https://github.com/dotmann-commits/mikeops-guard-showcase) and [PR #1](https://github.com/dotmann-commits/mikeops-guard-showcase/pull/1).
 
 ## Roadmap
 
