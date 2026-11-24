@@ -80,5 +80,12 @@ export interface Report {
   summary: SeverityCounts & { total: number; ignored: number };
   scanners: ScannerOutcome[];
   findings: Finding[];
+  scope?: {
+    baseline?: string;
+    changedSince?: string;
+    changedFiles?: number;
+    baselineSuppressed: number;
+    unchangedSuppressed: number;
+  };
   explain?: ExplainOutcome;
 }

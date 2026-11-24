@@ -18,6 +18,12 @@ inputs:
   report-dir:
     description: Where to write JSON, HTML, SARIF and Markdown reports.
     default: mikeops-guard-report
+  baseline:
+    description: Optional prior MikeOps JSON report whose existing fingerprints should be suppressed.
+    default: ""
+  changed-since:
+    description: Optional Git ref; only findings in files changed from this ref affect the verdict.
+    default: ""
   install-scanners:
     description: Download pinned, checksum-verified scanner binaries before scanning.
     default: "true"
@@ -53,11 +59,15 @@ runs:
         GUARD_FAIL_ON: ${{ inputs.fail-on }}
         GUARD_CONFIG: ${{ inputs.config }}
         GUARD_REPORT_DIR: ${{ inputs.report-dir }}
+        GUARD_BASELINE: ${{ inputs.baseline }}
+        GUARD_CHANGED_SINCE: ${{ inputs.changed-since }}
       run: |
         args=(scan "$GUARD_PATH" --fail-on "$GUARD_FAIL_ON" --require-tools
               --json "$GUARD_REPORT_DIR/report.json" --html "$GUARD_REPORT_DIR/report.html"
               --sarif "$GUARD_REPORT_DIR/report.sarif" --markdown "$GUARD_REPORT_DIR/summary.md")
         if [[ -n "$GUARD_CONFIG" ]]; then args+=(--config "$GUARD_CONFIG"); fi
+        if [[ -n "$GUARD_BASELINE" ]]; then args+=(--baseline "$GUARD_BASELINE"); fi
+        if [[ -n "$GUARD_CHANGED_SINCE" ]]; then args+=(--changed-since "$GUARD_CHANGED_SINCE"); fi
         set +e
         node "$GITHUB_ACTION_PATH/dist/cli/index.js" "${args[@]}"
         code=$?

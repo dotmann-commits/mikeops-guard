@@ -17,6 +17,8 @@ Scan options
       --html <file>          Write the HTML report to a file
       --sarif <file>         Write SARIF 2.1.0 for code scanning ("-" for stdout)
       --markdown <file>      Write a GitHub step-summary report ("-" for stdout)
+      --baseline <file>      Suppress fingerprints in a prior JSON report
+      --changed-since <ref>  Report findings only in files changed from a Git ref
       --explain              Explain top findings with a local Ollama model
       --model <name>         Ollama model for --explain (default: llama3.2:3b)
       --require-tools        Fail instead of skipping when a scanner is not installed

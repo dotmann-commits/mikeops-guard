@@ -1,19 +1,19 @@
 export const HTML_STYLES = `
 :root {
-  --bg: #f6f7f9; --panel: #ffffff; --text: #16191f; --muted: #5b6472; --border: #e1e5eb;
+  --bg: #f1f4f2; --panel: #ffffff; --text: #111713; --muted: #5b665f; --border: #d9e1dc;
   --critical: #b42318; --high: #d1491b; --medium: #b7791f; --low: #2f6fb5; --info: #667085;
-  --ok: #2e7d4f; --accent: #1f3a5f;
+  --ok: #177245; --accent: #087a50; --accent-soft: #dff7eb; --grid: rgba(8, 122, 80, 0.08);
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0f1216; --panel: #171b21; --text: #e6e9ee; --muted: #9aa4b2; --border: #2a313b;
+    --bg: #07100d; --panel: #0d1914; --text: #e9f4ee; --muted: #93a79c; --border: #20352b;
     --critical: #f97066; --high: #f38744; --medium: #f5c451; --low: #6aa8f0; --info: #98a2b3;
-    --ok: #5cc98a; --accent: #8fb4e3;
+    --ok: #63e6a4; --accent: #63f5b2; --accent-soft: #122b20; --grid: rgba(99, 245, 178, 0.06);
   }
 }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
-main { max-width: 1080px; margin: 0 auto; padding: 32px 16px 64px; }
+body { margin: 0; background-color: var(--bg); background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 40px 40px; color: var(--text); font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1160px; margin: 0 auto; padding: 40px 20px 72px; }
 header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 16px; align-items: flex-end; margin-bottom: 24px; }
 h1 { margin: 0; font-size: 26px; letter-spacing: -0.01em; }
 h2 { font-size: 18px; margin: 32px 0 12px; }
@@ -24,6 +24,14 @@ h2 { font-size: 18px; margin: 32px 0 12px; }
 .verdict.fail { background: var(--critical); }
 .verdict.warn { background: var(--medium); color: #1f1300; }
 .coverage { border-left: 4px solid var(--medium); padding: 8px 12px; margin: 12px 0; }
+.scope { background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 8px; padding: 10px 14px; overflow-wrap: anywhere; }
+.grade-panel { display: grid; grid-template-columns: 148px 1fr; gap: 28px; align-items: center; margin: 24px 0; padding: 22px 26px; background: linear-gradient(120deg, var(--panel), var(--accent-soft)); border: 1px solid var(--border); border-top: 4px solid var(--accent); border-radius: 14px; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.12); }
+.grade-panel h2 { margin: 2px 0 4px; font-size: 25px; }
+.grade-panel p { margin: 0; color: var(--muted); max-width: 760px; }
+.eyebrow { color: var(--accent); font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+.grade-ring { width: 126px; height: 126px; display: grid; place-content: center; text-align: center; border-radius: 50%; border: 1px solid var(--accent); background: radial-gradient(circle at center, var(--panel) 57%, transparent 59%), conic-gradient(var(--accent) 0 var(--grade-score), var(--border) var(--grade-score) 100%); box-shadow: inset 0 0 0 7px var(--panel), 0 0 30px var(--grid); }
+.grade-letter { display: block; font-size: 50px; line-height: .9; font-weight: 850; letter-spacing: -.06em; }
+.grade-score { display: block; margin-top: 7px; color: var(--muted); font: 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
 .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
 .card .n { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -52,14 +60,35 @@ tr:last-child td { border-bottom: 0; }
 .finding .ai { background: var(--bg); border-radius: 6px; padding: 8px 10px; white-space: pre-wrap; }
 .badge { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-right: 6px; }
 .refs { font-size: 13px; overflow-wrap: anywhere; }
-.attack-paths { display: grid; gap: 12px; }
-.attack-path { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.attack-paths { display: grid; gap: 16px; }
+.attack-path { background: linear-gradient(145deg, var(--panel), var(--accent-soft)); border: 1px solid var(--border); border-radius: 14px; padding: 20px; overflow-x: auto; box-shadow: 0 12px 32px rgba(0, 0, 0, .08); }
 .attack-path h3 { margin: 0; font-size: 16px; }
 .attack-path p { color: var(--muted); margin: 8px 0; }
+.attack-graph { display: block; width: 100%; min-width: 700px; height: auto; margin: 8px 0 2px; color: var(--accent); }
+.attack-connectors { stroke: currentColor; stroke-width: 3; stroke-dasharray: 8 7; fill: none; }
+.attack-graph marker path { fill: var(--accent); }
+.attack-node circle { fill: var(--panel); stroke: var(--accent); stroke-width: 3; }
+.attack-node text { text-anchor: middle; fill: var(--text); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+.attack-node .node-index { fill: var(--accent); font-size: 11px; font-weight: 800; letter-spacing: .15em; }
+.attack-node .node-label { font-size: 13px; font-weight: 750; }
+.attack-node .node-file { fill: var(--muted); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .attack-path ol { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin: 10px 0 0; }
 .attack-path li { flex: 1 1 180px; border-left: 3px solid var(--accent); background: var(--bg); padding: 8px 10px; border-radius: 6px; }
 .attack-path li span { display: block; color: var(--muted); font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
 a { color: var(--accent); }
+a:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .empty { color: var(--muted); padding: 24px; text-align: center; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; }
+
+@media (max-width: 600px) {
+  main { padding: 24px 12px 48px; }
+  .grade-panel { grid-template-columns: 1fr; padding: 20px; }
+  .grade-ring { width: 108px; height: 108px; }
+}
+@media print {
+  body { background: #fff; color: #111; }
+  main { max-width: none; padding: 0; }
+  .grade-panel, .attack-path, .card, .finding { box-shadow: none; break-inside: avoid; }
+  .filters { display: none; }
+}
 
 `;

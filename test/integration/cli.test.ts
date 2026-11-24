@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
-import { cp, mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { CliIo } from '../../src/cli/io.js';
 import { main } from '../../src/cli/main.js';
@@ -9,6 +11,7 @@ import type { Report } from '../../src/core/types.js';
 
 const FIXTURE = path.resolve(import.meta.dirname, '../fixtures/sample-repo');
 const noTools = () => null;
+const execFileAsync = promisify(execFile);
 
 interface Captured {
   io: CliIo;
@@ -106,6 +109,53 @@ describe('mikeops-guard scan (end to end)', () => {
     expect(report.scanners.filter((s) => s.status !== 'skipped' || !s.incomplete).map((s) => s.scanner)).toEqual(['workflow-audit']);
     expect(report.scanners.find((s) => s.scanner === 'gitleaks')?.reason).toBe('disabled by the config or by --only/--skip');
     expect(run.err()).toContain('Summary');
+  });
+
+  it('uses a prior JSON report as a baseline and records suppressed findings', async () => {
+    const baseline = path.join(outDir, 'adoption-baseline.json');
+    const captureRun = capture(outDir);
+    await main(['scan', repo, '--only', 'workflow-audit', '--fail-on', 'none', '--json', baseline], captureRun.io, { resolveBinary: noTools });
+
+    const scopedRun = capture(outDir);
+    const code = await main(['scan', repo, '--only', 'workflow-audit', '--baseline', baseline, '--json', '-'], scopedRun.io, { resolveBinary: noTools });
+    const report = JSON.parse(scopedRun.out()) as Report;
+    expect(code).toBe(0);
+    expect(report.findings).toEqual([]);
+    expect(report.scope).toMatchObject({ baselineSuppressed: 5, unchangedSuppressed: 0 });
+    expect(report.status).toBe('incomplete');
+  });
+
+  it('rejects a missing baseline instead of silently passing', async () => {
+    const run = capture(outDir);
+    expect(await main(['scan', repo, '--only', 'workflow-audit', '--baseline', path.join(outDir, 'missing.json')], run.io, { resolveBinary: noTools })).toBe(2);
+    expect(run.err()).toContain('Baseline file does not exist');
+  });
+
+  it('limits the verdict to tracked changes and untracked files since a real Git ref', async () => {
+    const changedRepo = await mkdtemp(path.join(os.tmpdir(), 'guard-diff-'));
+    const workflowDir = path.join(changedRepo, '.github/workflows');
+    const vulnerable = 'name: Risky\non: push\npermissions: write-all\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n';
+    try {
+      await mkdir(workflowDir, { recursive: true });
+      await writeFile(path.join(workflowDir, 'legacy.yml'), vulnerable);
+      await execFileAsync('git', ['init'], { cwd: changedRepo });
+      await execFileAsync('git', ['add', '.'], { cwd: changedRepo });
+      await execFileAsync('git', ['-c', 'user.name=MikeOps Test', '-c', 'user.email=test@example.invalid', 'commit', '-m', 'fixture'], { cwd: changedRepo });
+
+      const cleanRun = capture(outDir);
+      await main(['scan', changedRepo, '--only', 'workflow-audit', '--changed-since', 'HEAD', '--json', '-'], cleanRun.io, { resolveBinary: noTools });
+      expect((JSON.parse(cleanRun.out()) as Report).findings).toEqual([]);
+
+      await writeFile(path.join(workflowDir, 'new.yml'), vulnerable);
+      const changedRun = capture(outDir);
+      await main(['scan', changedRepo, '--only', 'workflow-audit', '--changed-since', 'HEAD', '--json', '-'], changedRun.io, { resolveBinary: noTools });
+      const report = JSON.parse(changedRun.out()) as Report;
+      expect(report.findings.length).toBeGreaterThan(0);
+      expect(report.findings.every((finding) => finding.file === '.github/workflows/new.yml')).toBe(true);
+      expect(report.scope).toMatchObject({ changedSince: 'HEAD', changedFiles: 1 });
+    } finally {
+      await rm(changedRepo, { recursive: true, force: true });
+    }
   });
 
   it('fails with exit 3 when --require-tools is set and a scanner is missing', async () => {

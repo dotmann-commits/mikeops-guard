@@ -5,6 +5,7 @@ import { CancelledError, UsageError } from '../../core/errors.js';
 import { execCommand } from '../../core/exec.js';
 import { exitCodeFor } from '../../core/policy.js';
 import { runScan } from '../../core/run.js';
+import { applyFindingScope, changedFilesSince, loadBaseline } from '../../core/scope.js';
 import type { Scanner } from '../../core/scanner.js';
 import { resolveBinary, type BinaryResolver } from '../../core/tools.js';
 import type { Report } from '../../core/types.js';
@@ -63,6 +64,16 @@ export async function scanCommand(options: ScanOptions, io: CliIo, deps: ScanDep
     toolVersion: toolVersion(),
     ...(deps.signal ? { signal: deps.signal } : {}),
   });
+
+  if (options.baseline || options.changedSince) {
+    const baselineFile = options.baseline ? path.resolve(io.cwd, options.baseline) : undefined;
+    report = applyFindingScope(report, {
+      ...(baselineFile ? { baseline: { label: options.baseline!, fingerprints: await loadBaseline(baselineFile) } } : {}),
+      ...(options.changedSince
+        ? { changed: { ref: options.changedSince, files: await changedFilesSince(root, options.changedSince, execCommand, deps.signal) } }
+        : {}),
+    });
+  }
 
   if (config.explain.enabled && report.findings.length > 0) {
     if (!options.quiet) log(`Explaining up to ${config.explain.maxFindings} finding(s) with ${config.explain.model} on ${config.explain.host}\n`);

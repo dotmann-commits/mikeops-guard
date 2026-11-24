@@ -14,6 +14,8 @@ export interface ScanOptions {
   html?: string;
   sarif?: string;
   markdown?: string;
+  baseline?: string;
+  changedSince?: string;
   explain: boolean;
   model?: string;
   requireTools: boolean;
@@ -87,6 +89,8 @@ export function parseCliArgs(argv: readonly string[], env: NodeJS.ProcessEnv, is
         html: { type: 'string' },
         sarif: { type: 'string' },
         markdown: { type: 'string' },
+        baseline: { type: 'string' },
+        'changed-since': { type: 'string' },
         explain: { type: 'boolean' },
         model: { type: 'string' },
         'require-tools': { type: 'boolean' },
@@ -159,6 +163,8 @@ export function parseCliArgs(argv: readonly string[], env: NodeJS.ProcessEnv, is
   if (values.html) options.html = values.html;
   if (values.sarif) options.sarif = values.sarif;
   if (values.markdown) options.markdown = values.markdown;
+  if (values.baseline) options.baseline = values.baseline;
+  if (values['changed-since']) options.changedSince = values['changed-since'];
   if (values.model) options.model = values.model;
   const stdoutReports = [options.json, options.sarif, options.markdown].filter((file) => file === '-');
   if (stdoutReports.length > 1) throw new UsageError('Only one of --json, --sarif or --markdown may write to stdout');

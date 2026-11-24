@@ -4,6 +4,7 @@ import type { Finding, Report, ScannerId } from '../../src/core/types.js';
 import { correlateAttackPaths } from '../../src/report/attack-paths.js';
 import { renderConsole } from '../../src/report/console.js';
 import { renderHtml } from '../../src/report/html.js';
+import { securityGrade } from '../../src/report/security-grade.js';
 
 function finding(scanner: ScannerId, ruleId: string, file: string, severity: Finding['severity'] = 'high'): Finding {
   return withFingerprint({ scanner, ruleId, title: ruleId, severity, category: scanner === 'workflow-audit' ? 'workflow' : scanner === 'gitleaks' ? 'secret' : 'application', file, line: 1, message: ruleId, references: [] });
@@ -25,6 +26,12 @@ const report: Report = {
 };
 
 describe('attack-path correlation', () => {
+  it('derives a transparent grade from findings and caps incomplete scans', () => {
+    expect(securityGrade(report)).toMatchObject({ letter: 'F', score: 34, complete: true });
+    const incomplete = { ...report, findings: [], summary: { ...report.summary, critical: 0, high: 0, total: 0 }, scanners: [{ scanner: 'gitleaks' as const, title: 'Secrets', status: 'failed' as const, durationMs: 1, findingCount: 0, incomplete: true }] };
+    expect(securityGrade(incomplete)).toMatchObject({ letter: 'D', score: 69, complete: false });
+  });
+
   it('builds distinct credential and application blast-radius paths from cross-layer evidence', () => {
     const paths = correlateAttackPaths(findings);
     expect(paths.map((path) => path.id)).toEqual(['agent-ci-secret', 'agent-ci-application']);
@@ -38,5 +45,11 @@ describe('attack-path correlation', () => {
     const html = renderHtml(report);
     expect(html).toContain('Potential attack paths');
     expect(html).toContain('AI toolchain compromise can reach CI credentials');
+    expect(html).toContain('Security Grade');
+    expect(html).toContain('grade-letter');
+    expect(html).toContain('style="--grade-score: 34%"');
+    expect(html).toContain('<svg class="attack-graph"');
+    expect(html).toContain('marker-end="url(#attack-arrow-0)"');
+    expect(html).toContain('aria-label="Attack path: AI toolchain compromise can reach CI credentials"');
   });
 });

@@ -46,7 +46,8 @@ Most incidents in small teams are not exotic. They come from a token committed s
 | Dependencies | Known vulnerabilities in lockfiles for npm, pnpm, yarn, pip, Go, Cargo, Maven and more | osv-scanner (default) or Trivy |
 | Web apps (AI-generated or not) | Server secrets in public frontend variables (`VITE_`, `NEXT_PUBLIC_`, `EXPO_PUBLIC_` and similar), the Supabase service role key in browser code, Supabase tables without Row Level Security, `using (true)` write policies, public storage buckets | Built in (`app-security`) |
 | AI agents and MCP | Bidirectional controls, suspicious zero-width characters and Unicode Tags in instructions, skills and READMEs; shell-based MCP launchers; unpinned `npx`/`uvx`; literal tokens; wildcard Claude Bash hooks; public AI keys and hardcoded secret fallbacks | Built in (`ai-supply-chain`) |
-| Reports | Terminal, JSON, self-contained HTML, SARIF 2.1.0 for code scanning, and Markdown for PR summaries | Built in |
+| Adoption | Fingerprint baselines and Git diff-only verdicts let legacy repositories fail only on newly introduced findings | Built in |
+| Reports | Terminal, JSON, self-contained HTML with a Security Grade and visual attack paths, SARIF 2.1.0, and Markdown | Built in |
 | AI explanations | Optional plain-English risk and fix notes from a **local** Ollama model. No paid APIs, nothing leaves your machine. | Ollama |
 
 ### Safety guarantees
@@ -115,6 +116,8 @@ mikeops-guard scan --html report.html      # write a shareable HTML report
 mikeops-guard scan --json report.json      # write a JSON report
 mikeops-guard scan --sarif report.sarif    # GitHub Code Scanning / SARIF viewers
 mikeops-guard scan --markdown summary.md   # GitHub Step Summary / PR table
+mikeops-guard scan --baseline baseline.json # suppress findings in a prior JSON report
+mikeops-guard scan --changed-since main     # only findings in changed/untracked files affect the verdict
 mikeops-guard scan --json - | jq '.summary' # JSON to stdout, human output to stderr
 mikeops-guard scan --only gitleaks,workflow-audit
 mikeops-guard scan --skip dependencies
@@ -140,9 +143,29 @@ mikeops-guard init --pre-commit            # install a git pre-commit guardrail
 
 A policy failure (`1`) takes priority over a scanner failure (`3`), because it is the more actionable signal.
 
-The JSON report's `status` is the full verdict: `passed` (no findings at the threshold and every applicable scanner ran), `failed` (findings at the threshold), or `incomplete` (no findings at the threshold, but coverage gaps). Each scanner outcome carries `incomplete: true` when it should have run but did not. `passed` keeps its 0.1.0 meaning, the policy result only.
+The JSON report's `status` is the full verdict: `passed` (no in-scope findings at the threshold and every applicable scanner ran), `failed` (in-scope findings at the threshold), or `incomplete` (no in-scope findings at the threshold, but coverage gaps). Each scanner outcome carries `incomplete: true` when it should have run but did not. `passed` keeps its 0.1.0 meaning, the policy result only.
 
 Fingerprints ignore the line number, so ignore rules keep matching when code moves. Identical findings in one file are numbered. Ignore rules written with 0.1.0 fingerprints still match.
+
+### Adopt on an existing repository
+
+Capture the known findings once, then make CI fail only when a fingerprint is new:
+
+```bash
+mikeops-guard scan --json .mikeops-baseline.json --fail-on none
+mikeops-guard scan --baseline .mikeops-baseline.json
+```
+
+The baseline accepts a previous MikeOps JSON report, `{ "fingerprints": [...] }`, or a JSON array of fingerprints. Matching findings are omitted from every output and from the exit-code decision; the report's `scope` records how many were suppressed. Missing, malformed and oversized baseline files are usage errors rather than silent clean scans. Commit the baseline only after reviewing it, and regenerate it deliberately when accepted risk changes.
+
+For pull requests or local work, scope the verdict to files changed from a trusted Git ref:
+
+```bash
+mikeops-guard scan --changed-since origin/main
+mikeops-guard scan --baseline .mikeops-baseline.json --changed-since origin/main
+```
+
+`--changed-since` includes committed differences, staged and unstaged edits, and untracked files. Scanners still run normally so repository-wide context and coverage checks are preserved; only the reported findings and verdict are file-scoped. Repository-level findings without a file are excluded from a diff-only verdict. Fetch the comparison ref before scanning in shallow CI checkouts.
 
 ## Configuration
 
@@ -272,6 +295,8 @@ Pin actions to commit SHAs, the same rule MikeOps Guard enforces on your own wor
 | `fail-on` | `high` | Severity that fails the job |
 | `config` | | Path to a config file |
 | `report-dir` | `mikeops-guard-report` | Where reports are written |
+| `baseline` | | Prior MikeOps JSON report whose fingerprints should be suppressed |
+| `changed-since` | | Git ref used to scope the verdict to changed and untracked files |
 | `install-scanners` | `true` | Set to `false` if your runner image already has them |
 
 ## Local AI explanations
@@ -322,7 +347,7 @@ interface Scanner {
 }
 ```
 
-The orchestrator discovers files once, resolves binaries, and runs scanners in parallel. Scanners that share a binary run one after another, because Trivy locks its cache. It then applies excludes, ignores and severity overrides, and builds a single report. Adding a scanner means writing one adapter file, adding it to `src/scanners/registry.ts`, and adding its id to `SCANNER_IDS`.
+The orchestrator discovers files once, resolves binaries, and runs scanners in parallel. Scanners that share a binary run one after another, because Trivy locks its cache. It then applies excludes, ignores, severity overrides and any trusted baseline/diff scope before building reports. Adding a scanner means writing one adapter file, adding it to `src/scanners/registry.ts`, and adding its id to `SCANNER_IDS`.
 
 ### Why TypeScript and not Go
 
@@ -352,7 +377,7 @@ Integration tests in `test/integration/real-tools.test.ts` run the real scanners
 
 ## Roadmap
 
-- Baseline file, so existing findings are recorded and only new ones fail the build.
+- Deterministic `mikeops-guard fix --dry-run` for a small set of safely rewritable findings.
 - Composite action (`action.yml`) and reusable workflow audits, not only `.github/workflows`.
 - More workflow rules: self-hosted runners on public repos, `secrets: inherit`, cache poisoning, artifact poisoning in `workflow_run`.
 - Docker Compose checks (privileged containers, host network, secrets in `environment:`).

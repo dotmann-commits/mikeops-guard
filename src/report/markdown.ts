@@ -36,6 +36,13 @@ export function renderMarkdown(report: Report): string {
   if (gaps.length > 0) {
     lines.push(`> **Incomplete coverage:** ${gaps.map((scanner) => escapeMarkdown(scanner.title)).join(', ')} did not complete.`, '');
   }
+  if (report.scope) {
+    const scope = [
+      report.scope.baseline ? `${report.scope.baselineSuppressed} baseline finding(s)` : '',
+      report.scope.changedSince ? `${report.scope.unchangedSuppressed} unchanged finding(s) outside ${report.scope.changedFiles ?? 0} changed file(s) since ${inlineCode(report.scope.changedSince)}` : '',
+    ].filter(Boolean).join(' and ');
+    lines.push(`> **Adoption scope:** Suppressed ${scope}.`, '');
+  }
   const attackPaths = correlateAttackPaths(report.findings);
   if (attackPaths.length > 0) {
     lines.push('## Potential attack paths', '', '> Correlations are plausible chains, not proof of exploitation.', '');

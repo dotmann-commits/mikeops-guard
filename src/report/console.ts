@@ -33,6 +33,14 @@ export function renderConsole(report: Report, options: ConsoleOptions): string {
   }
   lines.push('');
 
+  if (report.scope) {
+    const scoped = [
+      report.scope.baseline ? `${report.scope.baselineSuppressed} baseline` : '',
+      report.scope.changedSince ? `${report.scope.unchangedSuppressed} unchanged (${report.scope.changedFiles ?? 0} changed files since ${t(report.scope.changedSince)})` : '',
+    ].filter(Boolean).join(', ');
+    lines.push(`Adoption scope: ${scoped} finding(s) suppressed`, '');
+  }
+
   const attackPaths = correlateAttackPaths(report.findings);
   if (attackPaths.length > 0) {
     lines.push('Potential attack paths');

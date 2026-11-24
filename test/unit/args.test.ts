@@ -12,10 +12,10 @@ describe('parseCliArgs', () => {
   });
 
   it('parses scan options', () => {
-    const parsed = parse(['scan', 'repo', '--fail-on', 'medium', '--only', 'gitleaks,hadolint', '--json', 'report.json', '--sarif', 'report.sarif', '--markdown', '-', '--explain']);
+    const parsed = parse(['scan', 'repo', '--fail-on', 'medium', '--only', 'gitleaks,hadolint', '--json', 'report.json', '--sarif', 'report.sarif', '--markdown', '-', '--baseline', 'baseline.json', '--changed-since', 'origin/main', '--explain']);
     expect(parsed).toMatchObject({
       command: 'scan',
-      options: { path: 'repo', failOn: 'medium', only: ['gitleaks', 'hadolint'], json: 'report.json', sarif: 'report.sarif', markdown: '-', explain: true, color: true },
+      options: { path: 'repo', failOn: 'medium', only: ['gitleaks', 'hadolint'], json: 'report.json', sarif: 'report.sarif', markdown: '-', baseline: 'baseline.json', changedSince: 'origin/main', explain: true, color: true },
     });
   });
 
