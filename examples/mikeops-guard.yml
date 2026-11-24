@@ -20,7 +20,7 @@ jobs:
           fetch-depth: 0 # full history, so Gitleaks can find secrets in old commits
           persist-credentials: false
 
-      - uses: dotmann-commits/mikeops-guard@e429faf11bc7a56ece6eab7ba91c04c4e38683ea # v0.3.0
+      - uses: dotmann-commits/mikeops-guard@5f002e0f7656538912e27c1eb3e8adfffa1a86df # v0.3.0
         with:
           fail-on: high
       - if: always()
