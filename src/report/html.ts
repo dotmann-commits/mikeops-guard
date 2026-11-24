@@ -30,8 +30,8 @@ function renderScannerRow(outcome: ScannerOutcome): string {
   return `<tr>
     <td>${escapeHtml(outcome.title)}</td>
     <td class="status status-${outcome.status}">${outcome.status}${outcome.incomplete ? ' (not checked)' : ''}</td>
-    <td>${(outcome.durationMs / 1000).toFixed(1)}s</td>
-    <td>${outcome.findingCount}</td>
+    <td class="time-col">${(outcome.durationMs / 1000).toFixed(1)}s</td>
+    <td class="findings-col">${outcome.findingCount}</td>
     <td>${note}</td>
   </tr>`;
 }
@@ -69,6 +69,16 @@ function compactLabel(value: string, max = 24): string {
   return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
 }
 
+function renderPathBreaks(value: string): string {
+  return escapeHtml(value).replaceAll('/', '/<wbr>');
+}
+
+function renderNodeLabel(label: string): string {
+  if (label.length <= 13 || !label.includes(' ')) return `<text class="node-label" y="14">${escapeHtml(label)}</text>`;
+  const split = label.lastIndexOf(' ');
+  return `<text class="node-label"><tspan x="0" y="8">${escapeHtml(label.slice(0, split))}</tspan><tspan x="0" dy="15">${escapeHtml(label.slice(split + 1))}</tspan></text>`;
+}
+
 function renderAttackGraph(path: ReturnType<typeof correlateAttackPaths>[number], index: number): string {
   const positions = path.stages.length === 2 ? [190, 770] : [100, 480, 860];
   const marker = `attack-arrow-${index}`;
@@ -80,7 +90,7 @@ function renderAttackGraph(path: ReturnType<typeof correlateAttackPaths>[number]
     const where = stage.file ? compactLabel(stage.file) : 'repository';
     return `<g class="attack-node" transform="translate(${x} 70)">
       <circle r="54"/><text class="node-index" y="-10">0${stageIndex + 1}</text>
-      <text class="node-label" y="14">${escapeHtml(compactLabel(stage.label, 20))}</text>
+      ${renderNodeLabel(compactLabel(stage.label, 20))}
       <text class="node-file" y="84">${escapeHtml(where)}</text>
     </g>`;
   }).join('');
@@ -101,7 +111,7 @@ function renderAttackPaths(report: Report): string {
     ${renderAttackGraph(path, index)}
     <ol>${path.stages.map((stage) => {
       const where = stage.file ? `${stage.file}${stage.line ? `:${stage.line}` : ''}` : 'repository';
-      return `<li><strong>${escapeHtml(stage.label)}</strong><span>${escapeHtml(where)} · ${escapeHtml(stage.scanner)}/${escapeHtml(stage.ruleId)}</span></li>`;
+      return `<li><strong>${escapeHtml(stage.label)}</strong><span class="stage-location">${renderPathBreaks(where)}</span><span class="stage-rule">${escapeHtml(stage.scanner)}/${escapeHtml(stage.ruleId)}</span></li>`;
     }).join('')}</ol>
   </article>`).join('')}</section>`;
 }
@@ -109,7 +119,7 @@ function renderAttackPaths(report: Report): string {
 function renderGrade(report: Report): string {
   const grade = securityGrade(report);
   return `<section class="grade-panel" aria-label="Security Grade ${grade.letter}, ${grade.score} out of 100">
-    <div class="grade-ring" style="--grade-score: ${grade.score}%"><span class="grade-letter">${grade.letter}</span><span class="grade-score">${grade.score}/100</span></div>
+    <div class="grade-ring grade-${grade.letter.toLowerCase()}" style="--grade-score: ${grade.score}%"><span class="grade-letter">${grade.letter}</span><span class="grade-score">${grade.score}/100</span></div>
     <div><div class="eyebrow">Security Grade</div><h2>${grade.complete ? 'Measured risk signal' : 'Coverage-limited signal'}</h2>
     <p>${escapeHtml(grade.rationale)} This grade summarizes detected evidence; it is not a security certification.</p></div>
   </section>`;
@@ -170,7 +180,7 @@ export function renderHtml(report: Report): string {
   ${renderAttackPaths(report)}
   <h2>Scanners</h2>
   <div class="table-wrap"><table>
-    <thead><tr><th>Scanner</th><th>Status</th><th>Time</th><th>Findings</th><th>Notes</th></tr></thead>
+    <thead><tr><th>Scanner</th><th>Status</th><th class="time-col">Time</th><th class="findings-col">Findings</th><th>Notes</th></tr></thead>
     <tbody>${report.scanners.map(renderScannerRow).join('')}</tbody>
   </table></div>
   ${explain}

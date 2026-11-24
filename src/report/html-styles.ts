@@ -29,10 +29,13 @@ h2 { font-size: 18px; margin: 32px 0 12px; }
 .grade-panel h2 { margin: 2px 0 4px; font-size: 25px; }
 .grade-panel p { margin: 0; color: var(--muted); max-width: 760px; }
 .eyebrow { color: var(--accent); font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
-.grade-ring { width: 126px; height: 126px; display: grid; place-content: center; text-align: center; border-radius: 50%; border: 1px solid var(--accent); background: radial-gradient(circle at center, var(--panel) 57%, transparent 59%), conic-gradient(var(--accent) 0 var(--grade-score), var(--border) var(--grade-score) 100%); box-shadow: inset 0 0 0 7px var(--panel), 0 0 30px var(--grid); }
+.grade-ring { --grade-color: var(--accent); width: 126px; height: 126px; display: grid; place-content: center; text-align: center; border-radius: 50%; border: 1px solid var(--grade-color); background: radial-gradient(circle at center, var(--panel) 57%, transparent 59%), conic-gradient(var(--grade-color) 0 var(--grade-score), var(--border) var(--grade-score) 100%); box-shadow: inset 0 0 0 7px var(--panel), 0 0 30px var(--grid); }
+.grade-f, .grade-d { --grade-color: var(--critical); }
+.grade-c { --grade-color: var(--medium); }
+.grade-a, .grade-b { --grade-color: var(--ok); }
 .grade-letter { display: block; font-size: 50px; line-height: .9; font-weight: 850; letter-spacing: -.06em; }
 .grade-score { display: block; margin-top: 7px; color: var(--muted); font: 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+.cards { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
 .card { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
 .card .n { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .card .l { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
@@ -43,6 +46,7 @@ h2 { font-size: 18px; margin: 32px 0 12px; }
 table { width: 100%; min-width: 520px; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 th, td { overflow-wrap: anywhere; text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; font-size: 14px; }
 th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+.time-col, .findings-col { white-space: nowrap; }
 tr:last-child td { border-bottom: 0; }
 .status { font-weight: 600; } .status-ok { color: var(--ok); } .status-skipped { color: var(--muted); } .status-failed { color: var(--critical); }
 .filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
@@ -75,14 +79,22 @@ tr:last-child td { border-bottom: 0; }
 .attack-path ol { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin: 10px 0 0; }
 .attack-path li { flex: 1 1 180px; border-left: 3px solid var(--accent); background: var(--bg); padding: 8px 10px; border-radius: 6px; }
 .attack-path li span { display: block; color: var(--muted); font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+.attack-path li .stage-location { overflow-wrap: normal; }
+.attack-path li .stage-rule { margin-top: 3px; color: var(--accent); font-size: 11px; }
 a { color: var(--accent); }
 a:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .empty { color: var(--muted); padding: 24px; text-align: center; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; }
 
+@media (max-width: 900px) {
+  .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 @media (max-width: 600px) {
   main { padding: 24px 12px 48px; }
   .grade-panel { grid-template-columns: 1fr; padding: 20px; }
   .grade-ring { width: 108px; height: 108px; }
+}
+@media (max-width: 420px) {
+  .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media print {
   body { background: #fff; color: #111; }

@@ -52,4 +52,17 @@ describe('attack-path correlation', () => {
     expect(html).toContain('marker-end="url(#attack-arrow-0)"');
     expect(html).toContain('aria-label="Attack path: AI toolchain compromise can reach CI credentials"');
   });
+
+  it('keeps report metrics, graph labels and evidence readable at constrained widths', () => {
+    const html = renderHtml(report);
+    expect(html).toContain('<th class="time-col">Time</th><th class="findings-col">Findings</th>');
+    expect(html).toContain('.time-col, .findings-col { white-space: nowrap; }');
+    expect(html).toContain('grid-template-columns: repeat(6, minmax(0, 1fr))');
+    expect(html).toContain('grid-template-columns: repeat(3, minmax(0, 1fr))');
+    expect(html).toContain('class="grade-ring grade-f"');
+    expect(html).toContain('.grade-f, .grade-d { --grade-color: var(--critical); }');
+    expect(html).toContain('<tspan x="0" y="8">Agent/tooling</tspan><tspan x="0" dy="15">entry</tspan>');
+    expect(html).toContain('<span class="stage-location">.github/<wbr>workflows/<wbr>ci.yml:1</span><span class="stage-rule">workflow-audit/script-injection</span>');
+    expect(html).toContain('.attack-path li .stage-location { overflow-wrap: normal; }');
+  });
 });
