@@ -2,6 +2,7 @@ export const HELP_TEXT = `MikeOps Guard: find security issues and deployment ris
 
 Usage
   mikeops-guard scan [path] [options]   Scan a repository (default: current directory)
+  mikeops-guard mcp [root]              Serve read-only scans to local MCP clients
   mikeops-guard doctor                  Show which scanners are installed
   mikeops-guard init                    Write a starter .mikeops-guard.yml here
   mikeops-guard --version | --help
@@ -21,7 +22,7 @@ Scan options
   -q, --quiet                Only print the summary line
 
 Scanners
-  gitleaks, workflow-audit, actionlint, hadolint, trivy-config, dependencies, app-security
+  gitleaks, workflow-audit, actionlint, hadolint, trivy-config, dependencies, app-security, ai-supply-chain
 
 Exit codes
   0 passed   1 findings at or above --fail-on   2 usage or config error   3 a scanner failed

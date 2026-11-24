@@ -2,7 +2,7 @@
 
 **Find exposed secrets, risky GitHub Actions, Dockerfile problems and vulnerable dependencies before you ship.**
 
-MikeOps Guard is an open-source DevSecOps CLI. It runs proven free scanners (Gitleaks, actionlint, Hadolint, Trivy, osv-scanner) plus its own GitHub Actions security audit. It merges the results into one prioritised list and produces JSON and HTML reports. It sets an exit code your CI pipeline can act on.
+MikeOps Guard is an open-source DevSecOps CLI and MCP server. It runs proven free scanners (Gitleaks, actionlint, Hadolint, Trivy, osv-scanner) plus built-in checks for GitHub Actions, web applications and AI-agent supply chains. It merges the results into one prioritised list and produces JSON and HTML reports. It sets an exit code your CI pipeline or coding agent can act on.
 
 Real output from scanning the deliberately insecure sample repo in `test/fixtures/sample-repo` (plus one old `jinja2` pin), with all scanners installed:
 
@@ -45,6 +45,7 @@ Most incidents in small teams are not exotic. They come from a token committed s
 | Containers and IaC | Dockerfile, Kubernetes, Helm and Terraform misconfiguration | Trivy (`trivy config`) |
 | Dependencies | Known vulnerabilities in lockfiles for npm, pnpm, yarn, pip, Go, Cargo, Maven and more | osv-scanner (default) or Trivy |
 | Web apps (AI-generated or not) | Server secrets in public frontend variables (`VITE_`, `NEXT_PUBLIC_`, `EXPO_PUBLIC_` and similar), the Supabase service role key in browser code, Supabase tables without Row Level Security, `using (true)` write policies, public storage buckets | Built in (`app-security`) |
+| AI agents and MCP | Hidden bidirectional Unicode controls in agent instructions, skills and READMEs; shell-based MCP launchers; unpinned `npx`/`uvx` packages; literal MCP tokens; public AI keys and hardcoded secret fallbacks | Built in (`ai-supply-chain`) |
 | Reports | Terminal summary, JSON for tooling, self-contained HTML for people | Built in |
 | AI explanations | Optional plain-English risk and fix notes from a **local** Ollama model. No paid APIs, nothing leaves your machine. | Ollama |
 
@@ -118,6 +119,7 @@ mikeops-guard scan --skip dependencies
 mikeops-guard scan --fail-on critical      # only fail on critical findings
 mikeops-guard scan --explain               # add local AI explanations (see below)
 mikeops-guard init                         # write a starter .mikeops-guard.yml
+mikeops-guard mcp /absolute/path/to/repo   # serve read-only scans to coding agents over stdio
 ```
 
 ### Exit codes
@@ -161,6 +163,7 @@ scanners:
     enabled: true
     engine: osv-scanner   # osv-scanner | trivy
   app-security: { enabled: true }
+  ai-supply-chain: { enabled: true }
 
 ignore:                   # accepted risks, matched by rule id, "scanner:rule" or fingerprint
   - rule: DL3008
@@ -179,6 +182,25 @@ explain:
 ```
 
 Command-line flags override the file. Each tool's own config still applies, for example `.hadolint.yaml`, `.gitleaks.toml` and `.gitleaksignore` in the target repo.
+
+## Coding-agent integration (MCP)
+
+`mikeops-guard mcp [root]` exposes one read-only stdio tool, `mikeops_scan_repository`, for Claude Code, Cursor and other MCP clients. Configure the root explicitly so the server cannot scan outside that directory:
+
+```json
+{
+  "mcpServers": {
+    "mikeops-guard": {
+      "command": "mikeops-guard",
+      "args": ["mcp", "/absolute/path/to/repo"]
+    }
+  }
+}
+```
+
+Fast mode is the default. It always runs `workflow-audit`, `app-security` and `ai-supply-chain` with a trusted built-in policy, ignoring repository-defined disables and suppressions. It makes no network calls and is intended for checks before an agent commits generated code. Full mode follows the repository configuration and may run installed external scanners or contact their vulnerability services.
+
+Tool paths must be relative to the configured root. Real-path checks reject `..` traversal and symlink escapes. Responses contain at most 100 detailed findings, are size-bounded, redact secret-like values and never modify the target.
 
 ## GitHub Actions
 
@@ -239,7 +261,7 @@ Only finding metadata is sent: rule, severity, file path, line and message. File
 
 ## Network use
 
-MikeOps Guard makes no network calls of its own, except to the Ollama host when `--explain` is on. Some scanners do:
+Fast MCP scans make no network calls. Normal CLI scans and full MCP scans make no network calls of their own, except to the Ollama host when `--explain` is on. Some scanners do:
 
 - **Trivy** downloads its vulnerability database and misconfiguration checks on first run and caches them in `~/.cache/trivy`.
 - **osv-scanner** sends package names and versions (not your code) to the osv.dev API.
@@ -248,9 +270,10 @@ MikeOps Guard makes no network calls of its own, except to the Ollama host when 
 
 ```text
 src/
-  cli/          argument parsing, commands (scan, doctor, init), terminal I/O
+  cli/          argument parsing, commands (scan, doctor, init, mcp), terminal I/O
   config/       zod schema and loader for .mikeops-guard.yml
   core/         types, file discovery, safe process execution, policy, orchestration
+  mcp/          bounded repository scan tool and stdio MCP transport
   scanners/     one adapter per tool, plus workflow-audit/ with one file per rule
   report/       console, JSON and HTML renderers
   explain/      Ollama client
@@ -283,7 +306,12 @@ npm run typecheck
 npm run lint
 npm test          # unit tests, plus real-scanner tests for each installed tool
 npm run build
+npm run benchmark # fixed built-in scanner workloads; reports median and p95 time
 ```
+
+The benchmark covers the optimized frontend line lookup, workflow-expression lookup and an end-to-end scan through
+both built-in scanners. It uses a generated fixture, makes no network calls and checks that every measured run returns
+the expected number of deterministic findings. Timings are machine-specific; compare runs on the same machine.
 
 Integration tests in `test/integration/real-tools.test.ts` run the real scanners whenever they are on `PATH`, and are skipped otherwise. One test plants a randomly generated token in a throwaway git repo's history and checks that Gitleaks finds it and that the report never contains the value.
 

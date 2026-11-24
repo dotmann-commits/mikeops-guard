@@ -25,10 +25,15 @@ export interface UntrustedUse {
 /** Finds ${{ }} expressions that interpolate attacker-controlled data into a script. */
 export function findUntrustedExpressions(script: string): UntrustedUse[] {
   const hits: UntrustedUse[] = [];
+  let lineCursor = 0;
+  let lineIndex = 0;
   for (const match of script.matchAll(EXPRESSION)) {
     const inner = match[1] ?? '';
     if (!UNTRUSTED.test(inner)) continue;
-    const lineIndex = script.slice(0, match.index).split('\n').length - 1;
+    // Matches advance through the script, including any trusted expressions skipped above.
+    while (lineCursor < match.index) {
+      if (script[lineCursor++] === '\n') lineIndex++;
+    }
     hits.push({ expression: match[0], lineIndex });
   }
   return hits;

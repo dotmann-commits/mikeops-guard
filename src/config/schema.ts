@@ -25,6 +25,7 @@ export const configSchema = z.strictObject({
         .strictObject({ enabled, engine: z.enum(['osv-scanner', 'trivy']).default('osv-scanner') })
         .prefault({}),
       'app-security': toggle,
+      'ai-supply-chain': toggle,
     })
     .prefault({}),
   ignore: z

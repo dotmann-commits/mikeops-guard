@@ -4,7 +4,7 @@ import { readTextFile } from '../../core/files.js';
 import type { ScanContext, Scanner } from '../../core/scanner.js';
 import type { NewFinding } from '../../core/types.js';
 import { envFileFindings, sourceFindings, type ProjectKind } from './frontend.js';
-import { maskSql, publicBucketFinding, supabaseSqlFindings } from './sql.js';
+import { publicBucketFinding, supabaseSqlFindings } from './sql.js';
 
 /** Generated bundles and very large files are not hand-written source; reading them would only slow the scan. */
 const MAX_SOURCE_BYTES = 512 * 1024;
@@ -22,8 +22,8 @@ const BUILD_OUTPUT = new Set(['dist', 'build', '.next', 'out', 'coverage', '.out
 /** SQL is treated as Supabase only with evidence: a supabase/ path, or Postgres features Supabase relies on. */
 const SUPABASE_SQL = /\bauth\.(?:uid|users|jwt|role)\b|\bstorage\.(?:buckets|objects)\b|row\s+level\s+security|\bcreate\s+policy\b/i;
 
-function isSupabaseSql(file: string, source: string): boolean {
-  return file.split('/').includes('supabase') || SUPABASE_SQL.test(maskSql(source)); // statements, not comments
+function isSupabaseSql(file: string, maskedSource: string): boolean {
+  return file.split('/').includes('supabase') || SUPABASE_SQL.test(maskedSource); // statements, not comments
 }
 
 function isBuildOutput(file: string): boolean {
@@ -113,7 +113,7 @@ export const appSecurityScanner: Scanner = {
     const sourceResults = await mapLimit(present(source), FILE_CONCURRENCY, async (f) => sourceFindings(f.file, f.source, await kindOf(f.file)));
     return [
       ...present(env).flatMap((f) => envFileFindings(f.file, f.source)),
-      ...supabaseSqlFindings(present(sql).filter((f) => isSupabaseSql(f.file, f.source))),
+      ...supabaseSqlFindings(present(sql), isSupabaseSql),
       ...sourceResults.flat(),
       ...present(configs).flatMap((f) => supabaseConfigFindings(f.file, f.source)),
     ];

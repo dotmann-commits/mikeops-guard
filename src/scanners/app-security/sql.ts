@@ -32,17 +32,22 @@ export function maskSql(source: string): string {
     .replace(/'(?:[^']|'')*'/g, (m) => (/^'[\w.-]{0,64}'$/.test(m) ? m : `'${blank(m.slice(1, -1))}'`)); // names stay readable
 }
 
-function statements(file: SqlFile): Statement[] {
-  const masked = maskSql(file.source);
+function statements(file: string, masked: string): Statement[] {
   const out: Statement[] = [];
   let start = 0;
+  let lineCursor = 0;
+  let lineNumber = 1;
   for (let i = 0; i <= masked.length; i++) {
     if (i === masked.length || masked[i] === ';') {
       const raw = masked.slice(start, i);
       const text = raw.trim().replace(/\s+/g, ' ');
       if (text) {
         const offset = start + raw.length - raw.trimStart().length;
-        out.push({ file: file.file, line: masked.slice(0, offset).split('\n').length, text });
+        // Statement offsets only move forward, so count each preceding newline once.
+        while (lineCursor < offset) {
+          if (masked[lineCursor++] === '\n') lineNumber++;
+        }
+        out.push({ file, line: lineNumber, text });
       }
       start = i + 1;
     }
@@ -56,9 +61,16 @@ const tableKey = (schema: string | undefined, table: string): string => `${(sche
  * Supabase exposes tables in the public schema through its API with the anon key. Without Row Level Security a
  * table is readable and writable by anyone holding that key, which ships in every frontend. Checked across all SQL
  * files together, because RLS is often enabled in a later migration.
+ * An optional selector sees the same masked text used for parsing, so classification does not repeat masking.
  */
-export function supabaseSqlFindings(files: readonly SqlFile[]): NewFinding[] {
-  const all = files.flatMap(statements);
+export function supabaseSqlFindings(
+  files: readonly SqlFile[],
+  includeFile?: (file: string, maskedSource: string) => boolean,
+): NewFinding[] {
+  const all = files.flatMap((file) => {
+    const masked = maskSql(file.source);
+    return !includeFile || includeFile(file.file, masked) ? statements(file.file, masked) : [];
+  });
   const rls = new Set<string>();
   for (const s of all) {
     const m = ENABLE_RLS.exec(s.text);

@@ -16,7 +16,11 @@ const SERVER_SEGMENTS = new Set([
 ]);
 
 function lineOf(source: string, index: number): number {
-  return source.slice(0, index).split('\n').length;
+  let line = 1;
+  for (let i = 0; i < index; i++) {
+    if (source[i] === '\n') line++;
+  }
+  return line;
 }
 
 function publicSecretFinding(file: string, line: number, name: string, where: 'env' | 'code'): NewFinding {
@@ -86,8 +90,14 @@ export function runsInBrowser(file: string, source: string, project: ProjectKind
 
 export function sourceFindings(file: string, source: string, project: ProjectKind): NewFinding[] {
   const findings: NewFinding[] = [];
+  let lineCursor = 0;
+  let lineNumber = 1;
   for (const match of source.matchAll(CODE_REFERENCE)) {
-    findings.push(publicSecretFinding(file, lineOf(source, match.index), match[1] ?? '', 'code'));
+    // Match offsets increase, so each preceding newline is counted once.
+    while (lineCursor < match.index) {
+      if (source[lineCursor++] === '\n') lineNumber++;
+    }
+    findings.push(publicSecretFinding(file, lineNumber, match[1] ?? '', 'code'));
   }
   const serviceRole = SERVICE_ROLE.exec(source);
   if (serviceRole && runsInBrowser(file, source, project)) {

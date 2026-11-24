@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { CancelledError, ConfigError, GuardError, UsageError } from '../core/errors.js';
 import { EXIT_CODES } from '../core/exit-codes.js';
 import { parseCliArgs } from './args.js';
@@ -7,8 +8,13 @@ import { scanCommand, type ScanDependencies } from './commands/scan.js';
 import { HELP_TEXT } from './help.js';
 import type { CliIo } from './io.js';
 import { toolVersion } from './version.js';
+import { startMcpStdio, type McpServerHandle } from '../mcp/server.js';
 
-export async function main(argv: readonly string[], io: CliIo, deps: ScanDependencies = {}): Promise<number> {
+export interface MainDependencies extends ScanDependencies {
+  startMcp?: (root: string, log: (text: string) => void) => Promise<McpServerHandle>;
+}
+
+export async function main(argv: readonly string[], io: CliIo, deps: MainDependencies = {}): Promise<number> {
   try {
     const parsed = parseCliArgs(argv, io.env, io.isTty);
     switch (parsed.command) {
@@ -22,6 +28,9 @@ export async function main(argv: readonly string[], io: CliIo, deps: ScanDepende
         return await doctorCommand(io);
       case 'init':
         return await initCommand(io);
+      case 'mcp':
+        await (deps.startMcp ?? startMcpStdio)(path.resolve(io.cwd, parsed.root), io.stderr);
+        return EXIT_CODES.pass;
       case 'scan':
         return await scanCommand(parsed.options, io, deps);
     }

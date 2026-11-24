@@ -32,15 +32,18 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "benchmark": "npm run build && node scripts/benchmark.mjs",
     "check": "npm run typecheck && npm run lint && npm test",
     "prepublishOnly": "npm run check && npm run build"
   },
   "dependencies": {
+    "@modelcontextprotocol/server": "^2.4.0",
     "yaml": "^2.9.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@modelcontextprotocol/client": "^2.4.0",
     "@types/node": "^22.20.5",
     "eslint": "^10.13.0",
     "typescript": "^6.0.3",

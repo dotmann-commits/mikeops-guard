@@ -1,5 +1,6 @@
 import type { Scanner } from '../core/scanner.js';
 import { actionlintScanner } from './actionlint.js';
+import { aiSupplyChainScanner } from './ai-supply-chain/index.js';
 import { appSecurityScanner } from './app-security/index.js';
 import { dependenciesScanner } from './dependencies.js';
 import { gitleaksScanner } from './gitleaks.js';
@@ -16,4 +17,5 @@ export const SCANNERS: readonly Scanner[] = [
   trivyConfigScanner,
   dependenciesScanner,
   appSecurityScanner,
+  aiSupplyChainScanner,
 ];

@@ -37,6 +37,8 @@ scanners:
     engine: osv-scanner # osv-scanner | trivy
   app-security:
     enabled: true       # env, Supabase and frontend checks for web apps
+  ai-supply-chain:
+    enabled: true       # MCP launchers, agent instructions and AI-app secret footguns
 
 # Accepted risks. Match by rule id, "scanner:rule" or fingerprint, optionally limited to a path.
 ignore: []

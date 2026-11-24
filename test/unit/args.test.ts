@@ -24,10 +24,16 @@ describe('parseCliArgs', () => {
     expect(parsed.command === 'scan' && parsed.options.color).toBe(false);
   });
 
+  it('parses MCP mode with an optional confined root', () => {
+    expect(parse(['mcp'])).toEqual({ command: 'mcp', root: '.' });
+    expect(parse(['mcp', 'repo'])).toEqual({ command: 'mcp', root: 'repo' });
+  });
+
   it.each([
     [['scan', '--fail-on', 'urgent']],
     [['scan', '--only', 'semgrep']],
     [['scan', 'a', 'b']],
+    [['mcp', 'a', 'b']],
     [['deploy']],
     [['scan', '--bogus']],
     [['scan', '--max-findings', '-1']],

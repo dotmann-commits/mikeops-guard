@@ -9,6 +9,7 @@ export const SCANNER_IDS = [
   'gitleaks',
   'dependencies',
   'app-security',
+  'ai-supply-chain',
 ] as const;
 export type ScannerId = (typeof SCANNER_IDS)[number];
 

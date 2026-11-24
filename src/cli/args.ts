@@ -2,7 +2,7 @@ import { parseArgs } from 'node:util';
 import { UsageError } from '../core/errors.js';
 import { SCANNER_IDS, SEVERITIES, type ScannerId, type Severity } from '../core/types.js';
 
-export type Command = 'scan' | 'doctor' | 'init' | 'help' | 'version';
+export type Command = 'scan' | 'mcp' | 'doctor' | 'init' | 'help' | 'version';
 
 export interface ScanOptions {
   path: string;
@@ -20,10 +20,13 @@ export interface ScanOptions {
   quiet: boolean;
 }
 
-export type ParsedArgs = { command: Exclude<Command, 'scan'> } | { command: 'scan'; options: ScanOptions };
+export type ParsedArgs =
+  | { command: Exclude<Command, 'scan' | 'mcp'> }
+  | { command: 'mcp'; root: string }
+  | { command: 'scan'; options: ScanOptions };
 
 const DEFAULT_MAX_FINDINGS = 25;
-const COMMANDS = new Set<string>(['scan', 'doctor', 'init', 'help']);
+const COMMANDS = new Set<string>(['scan', 'mcp', 'doctor', 'init', 'help']);
 
 function parseScannerList(value: string | undefined, flag: string): ScannerId[] | undefined {
   if (value === undefined) return undefined;
@@ -84,9 +87,13 @@ export function parseCliArgs(argv: readonly string[], env: NodeJS.ProcessEnv, is
   const [first, ...rest] = positionals;
   const command = first ?? 'help';
   if (!COMMANDS.has(command)) throw new UsageError(`Unknown command "${command}". Run "mikeops-guard --help".`);
+  if (command === 'mcp') {
+    if (rest.length > 1) throw new UsageError('mcp takes at most one root path');
+    return { command: 'mcp', root: rest[0] ?? '.' };
+  }
   if (command !== 'scan') {
     if (rest.length > 0) throw new UsageError(`"${command}" does not take arguments`);
-    return { command: command as Exclude<Command, 'scan'> };
+    return { command: command as Exclude<Command, 'scan' | 'mcp'> };
   }
   if (rest.length > 1) throw new UsageError('scan takes at most one path');
 

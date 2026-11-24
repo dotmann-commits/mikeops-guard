@@ -12,6 +12,10 @@ export interface DiscoveredFiles {
   sourceFiles: string[];
   /** supabase/config.toml files. */
   supabaseConfigs: string[];
+  /** MCP client configuration files named mcp.json or .mcp.json. */
+  mcpConfigs: string[];
+  /** Agent instruction files such as AGENTS.md, CLAUDE.md and Cursor rules. */
+  aiInstructionFiles: string[];
   fileCount: number;
 }
 
@@ -29,6 +33,19 @@ export function isWorkflow(relativePath: string): boolean {
 
 const ENV_FILE = /^\.env(?:\.[A-Za-z0-9_-]+)*$/;
 const SOURCE_FILE = /\.(?:[cm]?[jt]sx?|vue|svelte|astro)$/;
+const AI_INSTRUCTION_NAME = /^(?:(?:AGENTS|CLAUDE|GEMINI|README|SKILL)\.md|\.cursorrules)$/i;
+
+export function isMcpConfig(relativePath: string): boolean {
+  const name = path.posix.basename(relativePath).toLowerCase();
+  return name === 'mcp.json' || name === '.mcp.json';
+}
+
+export function isAiInstructionFile(relativePath: string): boolean {
+  const name = path.posix.basename(relativePath);
+  return AI_INSTRUCTION_NAME.test(name)
+    || relativePath === '.github/copilot-instructions.md'
+    || (/^(?:.*\/)?\.cursor\/rules\//.test(relativePath) && /\.mdc?$/i.test(relativePath));
+}
 
 export function isEnvFile(relativePath: string): boolean {
   return ENV_FILE.test(path.posix.basename(relativePath));
@@ -37,7 +54,10 @@ export function isEnvFile(relativePath: string): boolean {
 /** Walks the target read-only. Symlinks are not followed so a scan never leaves the root. */
 export async function discoverFiles(root: string, exclude: readonly string[]): Promise<DiscoveredFiles> {
   const excluded = createMatcher(exclude);
-  const result: DiscoveredFiles = { dockerfiles: [], workflows: [], envFiles: [], sqlFiles: [], sourceFiles: [], supabaseConfigs: [], fileCount: 0 };
+  const result: DiscoveredFiles = {
+    dockerfiles: [], workflows: [], envFiles: [], sqlFiles: [], sourceFiles: [], supabaseConfigs: [],
+    mcpConfigs: [], aiInstructionFiles: [], fileCount: 0,
+  };
   const pending = [''];
 
   while (pending.length > 0) {
@@ -56,11 +76,16 @@ export async function discoverFiles(root: string, exclude: readonly string[]): P
         if (rel.endsWith('.sql')) result.sqlFiles.push(rel);
         if (SOURCE_FILE.test(rel) && !rel.endsWith('.d.ts')) result.sourceFiles.push(rel);
         if (rel === 'supabase/config.toml' || rel.endsWith('/supabase/config.toml')) result.supabaseConfigs.push(rel);
+        if (isMcpConfig(rel)) result.mcpConfigs.push(rel);
+        if (isAiInstructionFile(rel)) result.aiInstructionFiles.push(rel);
       }
     }
   }
 
-  for (const list of [result.dockerfiles, result.workflows, result.envFiles, result.sqlFiles, result.sourceFiles, result.supabaseConfigs]) list.sort();
+  for (const list of [
+    result.dockerfiles, result.workflows, result.envFiles, result.sqlFiles, result.sourceFiles,
+    result.supabaseConfigs, result.mcpConfigs, result.aiInstructionFiles,
+  ]) list.sort();
   return result;
 }
 
