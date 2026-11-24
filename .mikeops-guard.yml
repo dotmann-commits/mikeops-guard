@@ -3,3 +3,4 @@ failOn: high
 exclude:
   # Deliberately insecure fixtures used by the test suite.
   - "test/fixtures/**"
+  - "demo/fixtures/**"

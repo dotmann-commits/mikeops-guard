@@ -45,8 +45,8 @@ Most incidents in small teams are not exotic. They come from a token committed s
 | Containers and IaC | Dockerfile, Kubernetes, Helm and Terraform misconfiguration | Trivy (`trivy config`) |
 | Dependencies | Known vulnerabilities in lockfiles for npm, pnpm, yarn, pip, Go, Cargo, Maven and more | osv-scanner (default) or Trivy |
 | Web apps (AI-generated or not) | Server secrets in public frontend variables (`VITE_`, `NEXT_PUBLIC_`, `EXPO_PUBLIC_` and similar), the Supabase service role key in browser code, Supabase tables without Row Level Security, `using (true)` write policies, public storage buckets | Built in (`app-security`) |
-| AI agents and MCP | Hidden bidirectional Unicode controls in agent instructions, skills and READMEs; shell-based MCP launchers; unpinned `npx`/`uvx` packages; literal MCP tokens; public AI keys and hardcoded secret fallbacks | Built in (`ai-supply-chain`) |
-| Reports | Terminal summary, JSON for tooling, self-contained HTML for people | Built in |
+| AI agents and MCP | Bidirectional controls, suspicious zero-width characters and Unicode Tags in instructions, skills and READMEs; shell-based MCP launchers; unpinned `npx`/`uvx`; literal tokens; wildcard Claude Bash hooks; public AI keys and hardcoded secret fallbacks | Built in (`ai-supply-chain`) |
+| Reports | Terminal, JSON, self-contained HTML, SARIF 2.1.0 for code scanning, and Markdown for PR summaries | Built in |
 | AI explanations | Optional plain-English risk and fix notes from a **local** Ollama model. No paid APIs, nothing leaves your machine. | Ollama |
 
 ### Safety guarantees
@@ -113,6 +113,8 @@ mikeops-guard scan                         # scan the current directory
 mikeops-guard scan ../my-app               # scan another directory
 mikeops-guard scan --html report.html      # write a shareable HTML report
 mikeops-guard scan --json report.json      # write a JSON report
+mikeops-guard scan --sarif report.sarif    # GitHub Code Scanning / SARIF viewers
+mikeops-guard scan --markdown summary.md   # GitHub Step Summary / PR table
 mikeops-guard scan --json - | jq '.summary' # JSON to stdout, human output to stderr
 mikeops-guard scan --only gitleaks,workflow-audit
 mikeops-guard scan --skip dependencies
@@ -120,6 +122,10 @@ mikeops-guard scan --fail-on critical      # only fail on critical findings
 mikeops-guard scan --explain               # add local AI explanations (see below)
 mikeops-guard init                         # write a starter .mikeops-guard.yml
 mikeops-guard mcp /absolute/path/to/repo   # serve read-only scans to coding agents over stdio
+mikeops-guard hook                         # silent when clean; compact fix directives when blocked
+mikeops-guard init --claude-hook --skill   # install a zero-token Claude guardrail
+mikeops-guard init --cursor-hook           # install a Cursor afterFileEdit guardrail
+mikeops-guard init --pre-commit            # install a git pre-commit guardrail
 ```
 
 ### Exit codes
@@ -198,9 +204,28 @@ Command-line flags override the file. Each tool's own config still applies, for 
 }
 ```
 
-Fast mode is the default. It always runs `workflow-audit`, `app-security` and `ai-supply-chain` with a trusted built-in policy, ignoring repository-defined disables and suppressions. It makes no network calls and is intended for checks before an agent commits generated code. Full mode follows the repository configuration and may run installed external scanners or contact their vulnerability services.
+Fast mode is the default. It always runs `workflow-audit`, `app-security` and `ai-supply-chain` with a trusted built-in policy, ignoring repository-defined disables and suppressions. Conventional `test/fixtures`, `tests/fixtures` and `demo/fixtures` directories are excluded by that built-in policy so deliberately vulnerable test corpora do not block hooks. It makes no network calls and is intended for checks before an agent commits generated code. Full mode follows the repository configuration and may run installed external scanners or contact their vulnerability services.
 
 Tool paths must be relative to the configured root. Real-path checks reject `..` traversal and symlink escapes. Responses contain at most 100 detailed findings, are size-bounded, redact secret-like values and never modify the target.
+
+## Zero-token hooks
+
+`mikeops-guard hook` runs the trusted built-in profile without loading repository suppressions. A clean policy exits `0` with exactly empty stdout and stderr. Blocking findings produce compact directives such as:
+
+```text
+HIGH supabase/migrations/001.sql:12 [supabase-table-without-rls] Add "alter table public.invoices enable row level security;"
+```
+
+Use `--agent` for Claude Code or Cursor: directives go to stderr and the command exits `2`, which their hook protocols feed back to the agent. The default exit `1` is appropriate for git pre-commit. Install integrations without overwriting existing hook files:
+
+```bash
+mikeops-guard init --claude-hook
+mikeops-guard init --cursor-hook
+mikeops-guard init --pre-commit
+mikeops-guard init --skill
+```
+
+Hooks are the lowest-context option because clean runs add no model context. Use MCP when an IDE prefers explicit tools: MikeOps Guard exposes one read-only tool with bounded structured output.
 
 ## GitHub Actions
 
@@ -215,6 +240,7 @@ on:
 
 permissions:
   contents: read
+  security-events: write
 
 jobs:
   guard:
@@ -228,13 +254,17 @@ jobs:
         with:
           fail-on: high
       - if: always()
+        uses: github/codeql-action/upload-sarif@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
+        with:
+          sarif_file: mikeops-guard-report/report.sarif
+      - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: mikeops-guard-report
           path: mikeops-guard-report/
 ```
 
-Pin the action to a commit SHA, the same rule MikeOps Guard enforces on your own workflows. The action installs checksum-verified scanners, runs with `--require-tools`, writes `report.json` and `report.html`, and exposes the exit code as the `exit-code` output. A complete copy is in [examples/mikeops-guard.yml](examples/mikeops-guard.yml).
+Pin actions to commit SHAs, the same rule MikeOps Guard enforces on your own workflows. The action installs checksum-verified scanners, runs with `--require-tools`, writes JSON, HTML, SARIF and Markdown reports, appends the Markdown table to the GitHub Step Summary, and exposes the exit code as the `exit-code` output. The separate pinned `upload-sarif` step publishes alerts to the Security tab. A complete copy is in [examples/mikeops-guard.yml](examples/mikeops-guard.yml).
 
 | Input | Default | Description |
 |---|---|---|
@@ -270,12 +300,12 @@ Fast MCP scans make no network calls. Normal CLI scans and full MCP scans make n
 
 ```text
 src/
-  cli/          argument parsing, commands (scan, doctor, init, mcp), terminal I/O
+  cli/          argument parsing, commands (scan, hook, doctor, init, mcp), terminal I/O
   config/       zod schema and loader for .mikeops-guard.yml
   core/         types, file discovery, safe process execution, policy, orchestration
   mcp/          bounded repository scan tool and stdio MCP transport
   scanners/     one adapter per tool, plus workflow-audit/ with one file per rule
-  report/       console, JSON and HTML renderers
+  report/       terminal, JSON, HTML, SARIF, Markdown and attack-path correlation
   explain/      Ollama client
 ```
 
@@ -307,6 +337,7 @@ npm run lint
 npm test          # unit tests, plus real-scanner tests for each installed tool
 npm run build
 npm run benchmark # fixed built-in scanner workloads; reports median and p95 time
+npm run demo      # poisoned AI tooling -> live MCP findings -> clean self-healed rescan
 ```
 
 The benchmark covers the optimized frontend line lookup, workflow-expression lookup and an end-to-end scan through
@@ -315,9 +346,12 @@ the expected number of deterministic findings. Timings are machine-specific; com
 
 Integration tests in `test/integration/real-tools.test.ts` run the real scanners whenever they are on `PATH`, and are skipped otherwise. One test plants a randomly generated token in a throwaway git repo's history and checks that Gitleaks finds it and that the report never contains the value.
 
+## Hackathon demo
+
+`npm run demo` copies the dedicated fixture to a temporary directory, materializes an invisible Unicode Tag payload, starts the built stdio MCP server through the official client, and scans a poisoned Cursor rules file, MCP launcher, Claude hook, GitHub workflow and Supabase migration. It then applies deterministic agent-style fixes and requires the second MCP scan to return zero findings. The checked-in fixture is excluded from MikeOps Guard's own policy scan.
+
 ## Roadmap
 
-- SARIF output for GitHub code scanning alerts.
 - Baseline file, so existing findings are recorded and only new ones fail the build.
 - Composite action (`action.yml`) and reusable workflow audits, not only `.github/workflows`.
 - More workflow rules: self-hosted runners on public repos, `secrets: inherit`, cache poisoning, artifact poisoning in `workflow_run`.

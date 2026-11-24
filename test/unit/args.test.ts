@@ -12,10 +12,10 @@ describe('parseCliArgs', () => {
   });
 
   it('parses scan options', () => {
-    const parsed = parse(['scan', 'repo', '--fail-on', 'medium', '--only', 'gitleaks,hadolint', '--json', '-', '--explain']);
+    const parsed = parse(['scan', 'repo', '--fail-on', 'medium', '--only', 'gitleaks,hadolint', '--json', 'report.json', '--sarif', 'report.sarif', '--markdown', '-', '--explain']);
     expect(parsed).toMatchObject({
       command: 'scan',
-      options: { path: 'repo', failOn: 'medium', only: ['gitleaks', 'hadolint'], json: '-', explain: true, color: true },
+      options: { path: 'repo', failOn: 'medium', only: ['gitleaks', 'hadolint'], json: 'report.json', sarif: 'report.sarif', markdown: '-', explain: true, color: true },
     });
   });
 
@@ -29,14 +29,28 @@ describe('parseCliArgs', () => {
     expect(parse(['mcp', 'repo'])).toEqual({ command: 'mcp', root: 'repo' });
   });
 
+  it('parses zero-token hook mode and optional agent protocol', () => {
+    expect(parse(['hook'])).toEqual({ command: 'hook', options: { path: '.', agent: false, failOn: 'high' } });
+    expect(parse(['hook', 'repo', '--agent', '--fail-on', 'critical'])).toEqual({ command: 'hook', options: { path: 'repo', agent: true, failOn: 'critical' } });
+  });
+
+  it('parses one-command guardrail installers', () => {
+    expect(parse(['init', '--claude-hook', '--cursor-hook', '--pre-commit', '--skill'])).toEqual({
+      command: 'init',
+      options: { claudeHook: true, cursorHook: true, preCommit: true, skill: true },
+    });
+  });
+
   it.each([
     [['scan', '--fail-on', 'urgent']],
     [['scan', '--only', 'semgrep']],
     [['scan', 'a', 'b']],
     [['mcp', 'a', 'b']],
+    [['hook', 'a', 'b']],
     [['deploy']],
     [['scan', '--bogus']],
     [['scan', '--max-findings', '-1']],
+    [['scan', '--json', '-', '--sarif', '-']],
   ])('rejects %j with a UsageError', (argv) => {
     expect(() => parse(argv)).toThrow(UsageError);
   });

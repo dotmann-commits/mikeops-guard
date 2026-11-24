@@ -53,7 +53,7 @@ describe('mikeops-guard scan (end to end)', () => {
   it('finds the planted workflow issues, fails the policy and never touches the target', async () => {
     const before = await snapshot(repo);
     const run = capture(outDir);
-    const code = await main(['scan', repo, '--json', 'report.json', '--html', 'report.html'], run.io, { resolveBinary: noTools });
+    const code = await main(['scan', repo, '--json', 'report.json', '--html', 'report.html', '--sarif', 'report.sarif', '--markdown', 'summary.md'], run.io, { resolveBinary: noTools });
 
     expect(code).toBe(1);
     expect(await snapshot(repo)).toEqual(before);
@@ -77,6 +77,8 @@ describe('mikeops-guard scan (end to end)', () => {
     expect(report.scanners.find((s) => s.scanner === 'app-security')).toMatchObject({ status: 'skipped', incomplete: false });
 
     expect(await readFile(path.join(outDir, 'report.html'), 'utf8')).toContain('pull_request_target checks out untrusted PR code');
+    expect(JSON.parse(await readFile(path.join(outDir, 'report.sarif'), 'utf8'))).toMatchObject({ version: '2.1.0' });
+    expect(await readFile(path.join(outDir, 'summary.md'), 'utf8')).toContain('# MikeOps Guard — Failed');
     expect(run.out()).toContain('FAILED');
   });
 

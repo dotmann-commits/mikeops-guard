@@ -52,6 +52,13 @@ tr:last-child td { border-bottom: 0; }
 .finding .ai { background: var(--bg); border-radius: 6px; padding: 8px 10px; white-space: pre-wrap; }
 .badge { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-right: 6px; }
 .refs { font-size: 13px; overflow-wrap: anywhere; }
+.attack-paths { display: grid; gap: 12px; }
+.attack-path { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.attack-path h3 { margin: 0; font-size: 16px; }
+.attack-path p { color: var(--muted); margin: 8px 0; }
+.attack-path ol { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; margin: 10px 0 0; }
+.attack-path li { flex: 1 1 180px; border-left: 3px solid var(--accent); background: var(--bg); padding: 8px 10px; border-radius: 6px; }
+.attack-path li span { display: block; color: var(--muted); font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
 a { color: var(--accent); }
 .empty { color: var(--muted); padding: 24px; text-align: center; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; }
 

@@ -1,0 +1,6 @@
+create table public.invoices (
+  id bigint primary key,
+  user_id uuid not null
+);
+
+create policy invoices_open on public.invoices for all using (true);

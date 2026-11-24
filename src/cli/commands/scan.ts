@@ -12,6 +12,8 @@ import { explainFindings, OllamaClient } from '../../explain/ollama.js';
 import { renderConsole } from '../../report/console.js';
 import { renderHtml } from '../../report/html.js';
 import { renderJson } from '../../report/json.js';
+import { renderMarkdown } from '../../report/markdown.js';
+import { renderSarif } from '../../report/sarif.js';
 import { terminalSafe } from '../../report/terminal.js';
 import { SCANNERS } from '../../scanners/registry.js';
 import type { ScanOptions } from '../args.js';
@@ -45,8 +47,9 @@ export async function scanCommand(options: ScanOptions, io: CliIo, deps: ScanDep
   const root = await resolveTarget(io.cwd, options.path);
   const loaded = await loadConfig({ root, cwd: io.cwd, ...(options.config ? { explicitPath: options.config } : {}) });
   const config = applyCliOverrides(loaded.config, options);
-  // With --json - the JSON owns stdout, so human output moves to stderr.
-  const log = options.json === '-' ? io.stderr : io.stdout;
+  // A machine-readable report owns stdout, so human output moves to stderr.
+  const stdoutReport = options.json === '-' || options.sarif === '-' || options.markdown === '-';
+  const log = stdoutReport ? io.stderr : io.stdout;
 
   if (!options.quiet) log(loaded.source ? `Using config ${terminalSafe(loaded.source)}\n` : 'No config file found, using defaults\n');
   for (const warning of loaded.warnings) io.stderr(`Warning: ${terminalSafe(warning)}\n`); // even with --quiet
@@ -77,6 +80,10 @@ export async function scanCommand(options: ScanOptions, io: CliIo, deps: ScanDep
   if (options.json === '-') io.stdout(renderJson(report));
   else if (options.json) log(`JSON report: ${await writeReport(io.cwd, options.json, renderJson(report))}\n`);
   if (options.html) log(`HTML report: ${await writeReport(io.cwd, options.html, renderHtml(report))}\n`);
+  if (options.sarif === '-') io.stdout(renderSarif(report));
+  else if (options.sarif) log(`SARIF report: ${await writeReport(io.cwd, options.sarif, renderSarif(report))}\n`);
+  if (options.markdown === '-') io.stdout(renderMarkdown(report));
+  else if (options.markdown) log(`Markdown report: ${await writeReport(io.cwd, options.markdown, renderMarkdown(report))}\n`);
 
   const text = renderConsole(report, { color: options.color, maxFindings: options.quiet ? 0 : options.maxFindings });
   log(options.quiet ? text.split('\n').filter((l) => l.startsWith('Summary') || l.startsWith('Result')).join('\n') + '\n' : `\n${text}`);

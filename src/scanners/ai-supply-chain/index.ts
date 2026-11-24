@@ -5,6 +5,8 @@ import type { Scanner } from '../../core/scanner.js';
 import type { NewFinding } from '../../core/types.js';
 
 const HIDDEN_CONTROL = /[\u202A-\u202E\u2066-\u2069]/g;
+// ZWNJ/ZWJ are intentionally excluded: they are legitimate in many writing systems and emoji sequences.
+const INVISIBLE_CONTROL = /[\u200B\u2060\uFEFF\u{E0000}-\u{E007F}]/gu;
 const SHELLS = new Set(['bash', 'sh', 'zsh', 'cmd', 'cmd.exe', 'powershell', 'powershell.exe', 'pwsh', 'pwsh.exe']);
 const SECRET_NAME = /(?:KEY|SECRET|TOKEN|PASSWORD|PASSWD|CREDENTIAL)/i;
 const SECRET_HEADER = /^(?:authorization|proxy-authorization|x-api-key|api-key)$/i;
@@ -59,10 +61,88 @@ function isEnvironmentReference(value: string): boolean {
   return value === '' || /^\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[A-Za-z_][A-Za-z0-9_]*\})$/.test(value);
 }
 
+function stripJsonComments(source: string): string {
+  let output = '';
+  let inString = false;
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+  for (let index = 0; index < source.length; index++) {
+    const character = source[index] ?? '';
+    const next = source[index + 1] ?? '';
+    if (lineComment) {
+      if (character === '\n' || character === '\r') {
+        lineComment = false;
+        output += character;
+      } else output += ' ';
+      continue;
+    }
+    if (blockComment) {
+      if (character === '*' && next === '/') {
+        output += '  ';
+        index++;
+        blockComment = false;
+      } else output += character === '\n' || character === '\r' ? character : ' ';
+      continue;
+    }
+    if (inString) {
+      output += character;
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === '"') inString = false;
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      output += character;
+    } else if (character === '/' && next === '/') {
+      output += '  ';
+      index++;
+      lineComment = true;
+    } else if (character === '/' && next === '*') {
+      output += '  ';
+      index++;
+      blockComment = true;
+    } else output += character;
+  }
+  return output;
+}
+
+function removeTrailingCommas(source: string): string {
+  let output = '';
+  let inString = false;
+  let escaped = false;
+  for (let index = 0; index < source.length; index++) {
+    const character = source[index] ?? '';
+    if (inString) {
+      output += character;
+      if (escaped) escaped = false;
+      else if (character === '\\') escaped = true;
+      else if (character === '"') inString = false;
+      continue;
+    }
+    if (character === '"') {
+      inString = true;
+      output += character;
+      continue;
+    }
+    if (character === ',') {
+      let next = index + 1;
+      while (/\s/.test(source[next] ?? '')) next++;
+      output += source[next] === '}' || source[next] === ']' ? ' ' : character;
+    } else output += character;
+  }
+  return output;
+}
+
+function parseJsonc(source: string): unknown {
+  return JSON.parse(removeTrailingCommas(stripJsonComments(source)));
+}
+
 export function mcpConfigFindings(file: string, source: string): NewFinding[] {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(source);
+    parsed = parseJsonc(source);
   } catch {
     return [finding({
       ruleId: 'mcp-config-parse-error',
@@ -137,18 +217,65 @@ export function mcpConfigFindings(file: string, source: string): NewFinding[] {
 
 export function instructionFindings(file: string, source: string): NewFinding[] {
   const starts = lineStarts(source);
-  return [...source.matchAll(HIDDEN_CONTROL)].map((match) => finding({
-    ruleId: 'hidden-unicode-control',
-    title: 'AI instruction file contains a hidden bidirectional control',
+  const matches = [
+    ...[...source.matchAll(HIDDEN_CONTROL)].map((match) => ({ match, kind: 'bidi' as const })),
+    ...[...source.matchAll(INVISIBLE_CONTROL)].map((match) => ({ match, kind: 'invisible' as const })),
+  ].sort((left, right) => left.match.index - right.match.index);
+  return matches.map(({ match, kind }) => finding({
+    ruleId: kind === 'bidi' ? 'hidden-unicode-control' : 'invisible-unicode-control',
+    title: kind === 'bidi'
+      ? 'AI instruction file contains a hidden bidirectional control'
+      : 'AI instruction file contains an invisible Unicode control',
     severity: 'high',
     file,
     line: lineAt(starts, match.index),
-    message: 'A bidirectional Unicode control can make displayed text differ from the order that an agent or parser reads.',
+    message: kind === 'bidi'
+      ? 'A bidirectional Unicode control can make displayed text differ from the order that an agent or parser reads.'
+      : 'A zero-width character or Unicode Tag can hide instructions from reviewers while remaining readable to an agent.',
     remediation: 'Remove the hidden control and rewrite the affected line using visible plain text.',
   }));
 }
 
+export function claudeSettingsFindings(file: string, source: string): NewFinding[] {
+  let parsed: unknown;
+  try {
+    parsed = parseJsonc(source);
+  } catch {
+    return [finding({
+      ruleId: 'claude-settings-parse-error',
+      title: 'Claude settings could not be parsed',
+      severity: 'low',
+      file,
+      message: 'This Claude settings file is not valid JSONC, so hooks could not be audited.',
+      remediation: 'Fix the JSONC syntax and run MikeOps Guard again.',
+    })];
+  }
+  if (!isRecord(parsed) || !isRecord(parsed.hooks)) return [];
+  const findings: NewFinding[] = [];
+  const starts = lineStarts(source);
+  const visit = (value: unknown, key?: string): void => {
+    if (key === 'matcher' && typeof value === 'string' && /\bBash\s*\(\s*\*\s*\)/i.test(value)) {
+      const index = source.indexOf(JSON.stringify(value));
+      findings.push(finding({
+        ruleId: 'claude-wildcard-bash-hook',
+        title: 'Claude hook matches every Bash command',
+        severity: 'high',
+        file,
+        ...(index >= 0 ? { line: lineAt(starts, index) } : {}),
+        message: 'A Bash(*) hook runs for every shell command an agent attempts, creating a broad interception and command-execution boundary.',
+        remediation: 'Replace Bash(*) with the narrowest command matcher required and keep hook commands fixed, reviewed and non-secret.',
+      }));
+      return;
+    }
+    if (Array.isArray(value)) for (const item of value) visit(item);
+    else if (isRecord(value)) for (const [childKey, child] of Object.entries(value)) visit(child, childKey);
+  };
+  visit(parsed.hooks);
+  return findings;
+}
+
 export function aiSourceFindings(file: string, source: string): NewFinding[] {
+  if (/(?:^|\/)(?:test|tests|__tests__|fixtures)(?:\/|$)|\.(?:test|spec)\.[cm]?[jt]sx?$/i.test(file)) return [];
   const findings: NewFinding[] = [];
   const starts = lineStarts(source);
   for (const match of source.matchAll(ENV_FALLBACK)) {
@@ -208,7 +335,10 @@ export const aiSupplyChainScanner: Scanner = {
         ...instructionFindings(file, source),
         ...mcpConfigFindings(file, source),
       ]),
-      scan(ctx.files.aiInstructionFiles, true, instructionFindings),
+      scan(ctx.files.aiInstructionFiles, true, (file, source) => [
+        ...instructionFindings(file, source),
+        ...(/(?:^|\/)\.claude\/settings(?:\.local)?\.json$/i.test(file) ? claudeSettingsFindings(file, source) : []),
+      ]),
       scan(ctx.files.sourceFiles, false, aiSourceFindings),
     ]);
     return [...configs.flat(), ...instructions.flat(), ...sources.flat()];

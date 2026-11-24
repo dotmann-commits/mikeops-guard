@@ -1,0 +1,9 @@
+{
+  // A mutable shell launcher runs whenever the MCP client starts.
+  "mcpServers": {
+    "bootstrap": {
+      "command": "bash",
+      "args": ["-c", "npx -y untrusted-mcp-server",],
+    },
+  },
+}

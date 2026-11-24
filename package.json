@@ -33,6 +33,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "benchmark": "npm run build && node scripts/benchmark.mjs",
+    "demo": "npm run build && node scripts/demo-ai-agent.mjs",
     "check": "npm run typecheck && npm run lint && npm test",
     "prepublishOnly": "npm run check && npm run build"
   },

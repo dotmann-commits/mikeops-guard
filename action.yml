@@ -16,7 +16,7 @@ inputs:
     description: Optional path to a .mikeops-guard.yml config file.
     default: ""
   report-dir:
-    description: Where to write report.json and report.html.
+    description: Where to write JSON, HTML, SARIF and Markdown reports.
     default: mikeops-guard-report
   install-scanners:
     description: Download pinned, checksum-verified scanner binaries before scanning.
@@ -55,11 +55,15 @@ runs:
         GUARD_REPORT_DIR: ${{ inputs.report-dir }}
       run: |
         args=(scan "$GUARD_PATH" --fail-on "$GUARD_FAIL_ON" --require-tools
-              --json "$GUARD_REPORT_DIR/report.json" --html "$GUARD_REPORT_DIR/report.html")
+              --json "$GUARD_REPORT_DIR/report.json" --html "$GUARD_REPORT_DIR/report.html"
+              --sarif "$GUARD_REPORT_DIR/report.sarif" --markdown "$GUARD_REPORT_DIR/summary.md")
         if [[ -n "$GUARD_CONFIG" ]]; then args+=(--config "$GUARD_CONFIG"); fi
         set +e
         node "$GITHUB_ACTION_PATH/dist/cli/index.js" "${args[@]}"
         code=$?
         set -e
         echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        if [[ -f "$GUARD_REPORT_DIR/summary.md" ]]; then
+          cat "$GUARD_REPORT_DIR/summary.md" >> "$GITHUB_STEP_SUMMARY"
+        fi
         exit "$code"

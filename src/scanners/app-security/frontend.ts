@@ -89,6 +89,7 @@ export function runsInBrowser(file: string, source: string, project: ProjectKind
 }
 
 export function sourceFindings(file: string, source: string, project: ProjectKind): NewFinding[] {
+  if (!runsInBrowser(file, source, project)) return [];
   const findings: NewFinding[] = [];
   let lineCursor = 0;
   let lineNumber = 1;
@@ -100,7 +101,7 @@ export function sourceFindings(file: string, source: string, project: ProjectKin
     findings.push(publicSecretFinding(file, lineNumber, match[1] ?? '', 'code'));
   }
   const serviceRole = SERVICE_ROLE.exec(source);
-  if (serviceRole && runsInBrowser(file, source, project)) {
+  if (serviceRole) {
     findings.push({
       scanner: 'app-security',
       ruleId: 'service-role-in-frontend',

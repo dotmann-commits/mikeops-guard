@@ -2,13 +2,11 @@ import path from 'node:path';
 import { CancelledError, ConfigError, GuardError, UsageError } from '../core/errors.js';
 import { EXIT_CODES } from '../core/exit-codes.js';
 import { parseCliArgs } from './args.js';
-import { doctorCommand } from './commands/doctor.js';
-import { initCommand } from './commands/init.js';
-import { scanCommand, type ScanDependencies } from './commands/scan.js';
+import type { ScanDependencies } from './commands/scan.js';
 import { HELP_TEXT } from './help.js';
 import type { CliIo } from './io.js';
 import { toolVersion } from './version.js';
-import { startMcpStdio, type McpServerHandle } from '../mcp/server.js';
+import type { McpServerHandle } from '../mcp/server.js';
 
 export interface MainDependencies extends ScanDependencies {
   startMcp?: (root: string, log: (text: string) => void) => Promise<McpServerHandle>;
@@ -25,14 +23,16 @@ export async function main(argv: readonly string[], io: CliIo, deps: MainDepende
         io.stdout(`${toolVersion()}\n`);
         return EXIT_CODES.pass;
       case 'doctor':
-        return await doctorCommand(io);
+        return await (await import('./commands/doctor.js')).doctorCommand(io);
       case 'init':
-        return await initCommand(io);
+        return await (await import('./commands/init.js')).initCommand(io, parsed.options);
       case 'mcp':
-        await (deps.startMcp ?? startMcpStdio)(path.resolve(io.cwd, parsed.root), io.stderr);
+        await (deps.startMcp ?? (await import('../mcp/server.js')).startMcpStdio)(path.resolve(io.cwd, parsed.root), io.stderr);
         return EXIT_CODES.pass;
+      case 'hook':
+        return await (await import('./commands/hook.js')).hookCommand(parsed.options, io);
       case 'scan':
-        return await scanCommand(parsed.options, io, deps);
+        return await (await import('./commands/scan.js')).scanCommand(parsed.options, io, deps);
     }
   } catch (error) {
     if (error instanceof CancelledError) {

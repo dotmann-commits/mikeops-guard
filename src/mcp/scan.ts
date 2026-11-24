@@ -46,6 +46,10 @@ export interface McpScanOutput {
 }
 
 const FAST_SCANNERS = [workflowAuditScanner, appSecurityScanner, aiSupplyChainScanner] as const;
+const FAST_EXCLUDES = [
+  'test/fixtures/**', 'tests/fixtures/**', 'demo/fixtures/**',
+  '**/test/fixtures/**', '**/tests/fixtures/**', '**/demo/fixtures/**',
+] as const;
 const MAX_RESPONSE_BYTES = 256 * 1024;
 const MAX_FIELD_CHARS = 2_000;
 
@@ -109,7 +113,7 @@ export async function scanRepositoryForMcp(serverRoot: string, input: McpScanInp
   const target = await resolveTargetWithinRoot(root, input.path);
   const scanners = input.mode === 'fast' ? FAST_SCANNERS : SCANNERS;
   const config = input.mode === 'fast'
-    ? configSchema.parse({ failOn: input.failOn })
+    ? configSchema.parse({ failOn: input.failOn, exclude: FAST_EXCLUDES })
     : { ...(await loadConfig({ root: target, cwd: root })).config, failOn: input.failOn };
   const report = await runScan({
     root: target,

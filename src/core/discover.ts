@@ -44,7 +44,8 @@ export function isAiInstructionFile(relativePath: string): boolean {
   const name = path.posix.basename(relativePath);
   return AI_INSTRUCTION_NAME.test(name)
     || relativePath === '.github/copilot-instructions.md'
-    || (/^(?:.*\/)?\.cursor\/rules\//.test(relativePath) && /\.mdc?$/i.test(relativePath));
+    || (/^(?:.*\/)?\.cursor\/rules\//.test(relativePath) && /\.mdc?$/i.test(relativePath))
+    || /^(?:.*\/)?\.claude\/settings(?:\.local)?\.json$/i.test(relativePath);
 }
 
 export function isEnvFile(relativePath: string): boolean {

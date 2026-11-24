@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { SEVERITIES, type Finding, type Report, type ScannerOutcome } from '../core/types.js';
 import { escapeHtml, safeUrl } from './escape.js';
 import { HTML_STYLES } from './html-styles.js';
+import { correlateAttackPaths } from './attack-paths.js';
 
 // Tiny inline filter script. The report must work offline, so nothing is loaded from a CDN.
 const FILTER_SCRIPT = `
@@ -63,6 +64,21 @@ function renderFilters(report: Report): string {
     .join('')}</div>`;
 }
 
+function renderAttackPaths(report: Report): string {
+  const paths = correlateAttackPaths(report.findings);
+  if (paths.length === 0) return '';
+  return `<h2>Potential attack paths</h2>
+  <p class="meta">Correlations identify plausible blast-radius chains from coexisting findings; they do not prove exploitability.</p>
+  <section class="attack-paths">${paths.map((path) => `<article class="attack-path">
+    <h3><span class="badge sev-${path.severity}">${path.severity}</span>${escapeHtml(path.title)}</h3>
+    <p>${escapeHtml(path.summary)}</p>
+    <ol>${path.stages.map((stage) => {
+      const where = stage.file ? `${stage.file}${stage.line ? `:${stage.line}` : ''}` : 'repository';
+      return `<li><strong>${escapeHtml(stage.label)}</strong><span>${escapeHtml(where)} · ${escapeHtml(stage.scanner)}/${escapeHtml(stage.ruleId)}</span></li>`;
+    }).join('')}</ol>
+  </article>`).join('')}</section>`;
+}
+
 export function renderHtml(report: Report): string {
   const verdict =
     report.status === 'failed'
@@ -104,6 +120,7 @@ export function renderHtml(report: Report): string {
   </header>
   ${coverage}
   ${renderCards(report)}
+  ${renderAttackPaths(report)}
   <h2>Scanners</h2>
   <div class="table-wrap"><table>
     <thead><tr><th>Scanner</th><th>Status</th><th>Time</th><th>Findings</th><th>Notes</th></tr></thead>

@@ -4,6 +4,10 @@ import { sourceFindings } from '../../src/scanners/app-security/frontend.js';
 const browser = { browser: true, clientDirective: false };
 
 describe('frontend finding locations', () => {
+  it('does not report public frontend variables outside a browser application', () => {
+    expect(sourceFindings('src/cli.ts', 'process.env.VITE_SECRET;', { browser: false, clientDirective: false })).toEqual([]);
+  });
+
   it.each(['\n', '\r\n'])('keeps reference order and lines with %j line endings', (newline) => {
     const source = [
       'process.env.VITE_SECRET; import.meta.env.PUBLIC_PASSWORD;',

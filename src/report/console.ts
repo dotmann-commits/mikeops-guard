@@ -1,4 +1,5 @@
 import { SEVERITIES, type Finding, type Report, type Severity } from '../core/types.js';
+import { correlateAttackPaths } from './attack-paths.js';
 import { terminalSafe as t } from './terminal.js';
 
 export interface ConsoleOptions {
@@ -31,6 +32,16 @@ export function renderConsole(report: Report, options: ConsoleOptions): string {
     if (s.installHint) lines.push(`           ${paint(DIM, t(s.installHint))}`);
   }
   lines.push('');
+
+  const attackPaths = correlateAttackPaths(report.findings);
+  if (attackPaths.length > 0) {
+    lines.push('Potential attack paths');
+    for (const path of attackPaths) {
+      lines.push(`  ${paint(SEVERITY_COLORS[path.severity], path.severity.toUpperCase().padEnd(8))} ${t(path.title)}`);
+      lines.push(`           ${path.stages.map((stage) => `${t(stage.label)} [${stage.scanner}/${t(stage.ruleId)}]`).join(' → ')}`);
+    }
+    lines.push('');
+  }
 
   const shown = report.findings.slice(0, options.maxFindings);
   if (shown.length > 0) {
